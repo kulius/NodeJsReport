@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NodeJsReport - 印表機控制台</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header>
+    <div style="display:flex;align-items:center;gap:12px">
+      <h1>NodeJsReport</h1>
+      <span id="version-badge" class="badge badge-info" style="font-size:12px;vertical-align:middle">v...</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:16px">
+      <nav>
+        <a href="/" class="active">儀表板</a>
+        <a href="/preview.html">PDF 預覽</a>
+        <a href="/templates.html">套印範本</a>
+        <a href="/overlay-designer.html">套印設計器</a>
+      </nav>
+      <button class="btn btn-sm" id="btn-check-update" onclick="checkUpdate()" style="background:rgba(255,255,255,0.2);color:white;border:1px solid rgba(255,255,255,0.3)">檢查更新</button>
+    </div>
+  </header>
+
+  <!-- Update Modal -->
+  <div id="update-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:2000;justify-content:center;align-items:center">
+    <div style="background:white;border-radius:12px;padding:24px;max-width:480px;width:90%;max-height:80vh;overflow-y:auto">
+      <h2 style="margin-bottom:12px" id="update-modal-title">檢查更新</h2>
+      <div id="update-modal-body">檢查中...</div>
+      <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end" id="update-modal-actions">
+        <button class="btn btn-outline" onclick="closeUpdateModal()">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- Health Status -->
+    <div class="grid-3 mb-4">
+      <div class="card">
+        <h3>服務狀態</h3>
+        <div class="status status-active" id="health-status">
+          <span class="status-dot"></span>
+          <span>載入中...</span>
+        </div>
+      </div>
+      <div class="card">
+        <h3>目錄監測</h3>
+        <div class="status status-inactive" id="watcher-status">
+          <span class="status-dot"></span>
+          <span>未啟動</span>
+        </div>
+      </div>
+      <div class="card">
+        <h3>列印工作</h3>
+        <div id="job-stats" class="text-sm text-muted">載入中...</div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <!-- Printers -->
+      <div class="card">
+        <div class="flex justify-between items-center mb-2">
+          <h2>印表機</h2>
+          <button class="btn btn-outline btn-sm" onclick="loadPrinters()">重新整理</button>
+        </div>
+        <div id="printer-list">
+          <div class="empty-state"><p>載入中...</p></div>
+        </div>
+      </div>
+
+      <!-- Watcher Control -->
+      <div class="card">
+        <h2>目錄監測</h2>
+        <div class="form-group">
+          <label>監測目錄</label>
+          <input type="text" id="watch-dir" placeholder="D:/print_queue" />
+        </div>
+        <div class="form-group">
+          <label>印表機</label>
+          <select id="watch-printer">
+            <option value="">(系統預設)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>紙張大小</label>
+          <select id="watch-paper-size">
+            <option value="A4">A4</option>
+          </select>
+        </div>
+        <div class="flex gap-2 mt-2">
+          <button class="btn btn-success" id="btn-start-watch" onclick="startWatcher()">開始監測</button>
+          <button class="btn btn-danger" id="btn-stop-watch" onclick="stopWatcher()" disabled>停止監測</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Excel Upload -->
+    <div class="card">
+      <h2>Excel 上傳列印</h2>
+      <div class="drop-zone" id="excel-drop-zone">
+        <p>拖放 XLS/XLSX 檔案到這裡，或點擊選擇檔案</p>
+        <input type="file" id="excel-file-input" accept=".xls,.xlsx" style="display:none" />
+      </div>
+      <div class="flex gap-2 mt-2">
+        <button class="btn btn-primary" id="btn-excel-print" onclick="excelPrint()" disabled>列印</button>
+        <button class="btn btn-outline" id="btn-excel-preview" onclick="excelPreview()" disabled>預覽</button>
+      </div>
+    </div>
+
+    <!-- Recent Jobs -->
+    <div class="card">
+      <h2>近期列印工作</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>來源</th>
+            <th>印表機</th>
+            <th>狀態</th>
+            <th>時間</th>
+          </tr>
+        </thead>
+        <tbody id="job-table-body">
+          <tr><td colspan="5" class="text-muted" style="text-align:center">尚無列印工作</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Processed Files -->
+    <div class="card">
+      <h2>已處理檔案</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>檔名</th>
+            <th>狀態</th>
+            <th>時間</th>
+            <th>錯誤</th>
+          </tr>
+        </thead>
+        <tbody id="processed-table-body">
+          <tr><td colspan="4" class="text-muted" style="text-align:center">尚無記錄</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>

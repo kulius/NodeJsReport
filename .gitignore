@@ -1,0 +1,12 @@
+node_modules/
+dist/
+build/
+.env
+data/uploads/*
+data/output/*
+data/fonts/*.ttf
+data/fonts/*.otf
+!data/uploads/.gitkeep
+!data/output/.gitkeep
+!data/fonts/.gitkeep
+*.log

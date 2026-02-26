@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDF 預覽 - NodeJsReport</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .preview-container {
+      display: flex;
+      flex-direction: column;
+      height: calc(100vh - 60px);
+    }
+    .preview-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 20px;
+      background: var(--card-bg);
+      border-bottom: 1px solid var(--border);
+    }
+    .preview-body {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      overflow: auto;
+      padding: 20px;
+      background: #525659;
+    }
+    #pdf-canvas {
+      box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+      background: white;
+    }
+    .page-info {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>NodeJsReport</h1>
+    <nav>
+      <a href="/">儀表板</a>
+      <a href="/preview.html" class="active">PDF 預覽</a>
+      <a href="/templates.html">套印範本</a>
+      <a href="/overlay-designer.html">套印設計器</a>
+    </nav>
+  </header>
+
+  <div class="preview-container">
+    <div class="preview-toolbar">
+      <button class="btn btn-outline btn-sm" onclick="prevPage()">&lt; 上一頁</button>
+      <span class="page-info" id="page-info">第 0 / 0 頁</span>
+      <button class="btn btn-outline btn-sm" onclick="nextPage()">下一頁 &gt;</button>
+      <span style="flex:1"></span>
+      <button class="btn btn-outline btn-sm" onclick="zoomOut()">-</button>
+      <span class="page-info" id="zoom-info">100%</span>
+      <button class="btn btn-outline btn-sm" onclick="zoomIn()">+</button>
+      <span style="flex:1"></span>
+      <button class="btn btn-primary btn-sm" onclick="printPdf()">列印</button>
+      <button class="btn btn-outline btn-sm" onclick="downloadPdf()">下載</button>
+    </div>
+    <div class="preview-body">
+      <canvas id="pdf-canvas"></canvas>
+    </div>
+  </div>
+
+  <script src="/js/preview.js"></script>
+</body>
+</html>
