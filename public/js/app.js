@@ -352,6 +352,48 @@ async function excelPreview() {
   }
 }
 
+// Test format
+async function testFormat(formatId, action) {
+  const schemaId = formatId.replace(/_/g, '-');
+
+  try {
+    showToast('載入範例資料...', 'info');
+    const schemaResult = await apiGet(`/api/generate/schema/${schemaId}`);
+
+    if (!schemaResult.success) {
+      showToast(`取得 schema 失敗: ${schemaResult.error}`, 'error');
+      return;
+    }
+
+    const examples = schemaResult.data.examples;
+    if (!examples || !examples.length) {
+      showToast('此格式沒有內建範例資料', 'error');
+      return;
+    }
+
+    showToast(action === 'preview' ? '產生預覽中...' : '送出列印中...', 'info');
+    const result = await apiPost('/api/generate', {
+      reportType: formatId,
+      data: examples[0],
+      action,
+    });
+
+    if (!result.success) {
+      showToast(`失敗: ${result.error}`, 'error');
+      return;
+    }
+
+    if (action === 'preview') {
+      window.open(`/preview.html?id=${result.previewId}`, '_blank');
+    } else {
+      showToast(`列印成功 (${result.printer})`, 'success');
+      loadJobs();
+    }
+  } catch (error) {
+    showToast(`測試列印失敗: ${error.message || '網路錯誤'}`, 'error');
+  }
+}
+
 // Update checker
 async function checkUpdate() {
   const modal = document.getElementById('update-modal');
