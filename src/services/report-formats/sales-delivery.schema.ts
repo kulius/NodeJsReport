@@ -45,13 +45,13 @@ export const salesDeliverySchema: Record<string, unknown> = {
     },
     items: {
       type: 'array',
-      description: '銷貨明細（9 欄：英文品名/真品名稱/數量/單位/規格/單價/金額/批號/有效日期）',
+      description: '銷貨明細（9 欄：英文品名/貨品名稱/數量/單位/規格/單價/金額/批號/有效日期）— v0.3.8 加寬名稱欄',
       items: {
         type: 'object',
         required: ['productName', 'qty', 'unitPrice', 'amount'],
         properties: {
-          englishName: { type: 'string', description: '英文品名（長名稱自動換行，欄寬 18 半形字元）' },
-          productName: { type: 'string', description: '真品名稱/中文品名（長名稱自動換行，欄寬 16 半形字元 = 8 個中文字）' },
+          englishName: { type: 'string', description: '英文品名（長名稱自動換行，欄寬 22 半形字元）' },
+          productName: { type: 'string', description: '貨品名稱/中文品名（長名稱自動換行，欄寬 20 半形字元 = 10 個中文字）' },
           qty: { type: 'number', description: '數量' },
           unit: { type: 'string', description: '單位（箱、盒、瓶等）' },
           specification: { type: 'string', description: '規格（如 "1000粒/盒"、"24入/箱"）' },

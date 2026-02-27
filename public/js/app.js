@@ -353,7 +353,7 @@ async function excelPreview() {
 }
 
 // Test format
-async function testFormat(formatId, action) {
+async function testFormat(formatId, action, mode) {
   const schemaId = formatId.replace(/_/g, '-');
 
   try {
@@ -371,12 +371,47 @@ async function testFormat(formatId, action) {
       return;
     }
 
-    showToast(action === 'preview' ? '產生預覽中...' : '送出列印中...', 'info');
-    const result = await apiPost('/api/generate', {
+    // ESC/P debug: binary download via fetch + blob
+    if (mode === 'escp_debug') {
+      showToast('產生 .prn 檔案中...', 'info');
+      try {
+        const resp = await fetch(`${API_BASE}/api/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reportType: formatId, data: examples[0], mode: 'escp_debug' }),
+        });
+        if (!resp.ok) {
+          const err = await resp.json();
+          showToast(`失敗: ${err.error}`, 'error');
+          return;
+        }
+        const blob = await resp.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${formatId}-debug.prn`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast(`已下載 ${formatId}-debug.prn (${blob.size} bytes)`, 'success');
+      } catch (err) {
+        showToast(`下載失敗: ${err.message}`, 'error');
+      }
+      return;
+    }
+
+    const modeLabel = mode === 'escp' ? 'ESC/P ' : '';
+    showToast(action === 'preview' ? '產生預覽中...' : `${modeLabel}送出列印中...`, 'info');
+
+    const body = {
       reportType: formatId,
       data: examples[0],
       action,
-    });
+    };
+    if (mode) {
+      body.mode = mode;
+    }
+
+    const result = await apiPost('/api/generate', body);
 
     if (!result.success) {
       showToast(`失敗: ${result.error}`, 'error');
@@ -386,7 +421,8 @@ async function testFormat(formatId, action) {
     if (action === 'preview') {
       window.open(`/preview.html?id=${result.previewId}`, '_blank');
     } else {
-      showToast(`列印成功 (${result.printer})`, 'success');
+      const extra = result.mode === 'escp' ? ` [ESC/P ${result.bytes}bytes]` : '';
+      showToast(`列印成功 (${result.printer})${extra}`, 'success');
       loadJobs();
     }
   } catch (error) {

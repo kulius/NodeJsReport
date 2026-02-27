@@ -4,8 +4,9 @@ import fs from 'fs';
 import path from 'path';
 import { generateReport } from '../services/report.service';
 import { printPdfBuffer } from '../services/printer.service';
+import { sendEscpToLocalPrinter } from '../services/escp.service';
 import { createJob, updateJobStatus } from '../services/job-queue.service';
-import { getFormat, getSchema, listFormats } from '../services/report-formats';
+import { getFormat, getEscpFormat, getSchema, listFormats } from '../services/report-formats';
 import { generateRequestSchema } from '../validators/generate.validator';
 import { config } from '../config';
 
@@ -71,12 +72,87 @@ router.get('/schema/:formatId', (req: Request, res: Response) => {
  *   reportType: "auto" (預設) 或已註冊的格式 ID
  *   data: { ... }  ← 原始業務資料
  *   action: "print" (預設) | "preview" | "download"
+ *   mode: "pdf" (預設) | "escp"
  *   printer: "印表機名稱" (選填)
  *   copies: 1 (選填)
  */
 router.post('/', async (req: Request, res: Response) => {
   try {
     const parsed = generateRequestSchema.parse(req.body);
+
+    // ── ESC/P debug 模式：產生 .prn 檔案下載（不送印） ──
+    if (parsed.mode === 'escp_debug') {
+      const escpFn = getEscpFormat(parsed.reportType);
+      if (!escpFn) {
+        const available = listFormats().filter(f => f.hasEscp).map(f => f.id);
+        return res.status(400).json({
+          success: false,
+          error: `No ESC/P format for "${parsed.reportType}". Available: ${available.join(', ') || '(none)'}`,
+        });
+      }
+
+      const escpBuffer = escpFn(parsed.data);
+      const filename = `${parsed.reportType}-debug.prn`;
+
+      res.setHeader('Content-Type', 'application/octet-stream');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      return res.send(escpBuffer);
+    }
+
+    // ── ESC/P 模式：直接送 raw bytes 到點陣印表機 ──
+    if (parsed.mode === 'escp') {
+      const escpFn = getEscpFormat(parsed.reportType);
+      if (!escpFn) {
+        const available = listFormats().filter(f => f.hasEscp).map(f => f.id);
+        return res.status(400).json({
+          success: false,
+          error: `No ESC/P format for "${parsed.reportType}". Available: ${available.join(', ') || '(none)'}`,
+        });
+      }
+
+      // ESC/P 只支援 print（不支援 preview/download，因為不是 PDF）
+      if (parsed.action !== 'print') {
+        return res.status(400).json({
+          success: false,
+          error: 'ESC/P mode only supports action="print". Use mode="pdf" for preview/download.',
+        });
+      }
+
+      const escpBuffer = escpFn(parsed.data);
+      const printerName = parsed.printer || 'EPSON LQ-690CIIN ESC/P2';
+
+      const job = createJob({
+        printer: printerName,
+        mode: 'escp',
+        copies: parsed.copies,
+        paperSize: 'continuous',
+        source: `generate:${parsed.reportType}:escp`,
+      });
+
+      updateJobStatus(job.id, 'printing');
+
+      try {
+        // 多份列印：重複送出 buffer
+        for (let i = 0; i < parsed.copies; i++) {
+          await sendEscpToLocalPrinter(escpBuffer, printerName);
+        }
+        updateJobStatus(job.id, 'completed');
+      } catch (err) {
+        updateJobStatus(job.id, 'failed');
+        throw err;
+      }
+
+      return res.json({
+        success: true,
+        action: 'print',
+        mode: 'escp',
+        jobId: job.id,
+        printer: printerName,
+        bytes: escpBuffer.length,
+      });
+    }
+
+    // ── PDF 模式（原有邏輯） ──
 
     // 1. 找到報表格式
     const formatFn = getFormat(parsed.reportType);

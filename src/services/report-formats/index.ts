@@ -1,7 +1,8 @@
-import type { ReportFormatFn, ReportFormatInfo } from './types';
+import type { ReportFormatFn, EscpFormatFn, ReportFormatInfo } from './types';
 import { autoFormat } from './auto.format';
 import { salesDeliveryFormat } from './sales-delivery.format';
 import { salesDeliverySchema } from './sales-delivery.schema';
+import { salesDeliveryEscp } from './sales-delivery.escp';
 
 /** 報表格式註冊表 — AI 產生的格式都在這裡註冊 */
 const registry = new Map<string, ReportFormatInfo>();
@@ -22,12 +23,18 @@ register('sales_delivery', {
   name: '銷貨單',
   description: '銷貨單（中一刀 241×140mm），含表頭、客戶資訊、明細、合計、簽名欄',
   format: salesDeliveryFormat,
+  escpFormat: salesDeliveryEscp,
   schema: salesDeliverySchema,
 });
 
 /** 取得格式函式 */
 export function getFormat(reportType: string): ReportFormatFn | undefined {
   return registry.get(reportType)?.format;
+}
+
+/** 取得 ESC/P 格式函式 */
+export function getEscpFormat(reportType: string): EscpFormatFn | undefined {
+  return registry.get(reportType)?.escpFormat;
 }
 
 /** 用 schemaId 查找內嵌 schema（schemaId 可用連字號或底線） */
@@ -42,10 +49,11 @@ export function getSchema(schemaId: string): Record<string, unknown> | undefined
 }
 
 /** 列出所有已註冊的格式 */
-export function listFormats(): Array<{ id: string; name: string; description: string }> {
+export function listFormats(): Array<{ id: string; name: string; description: string; hasEscp: boolean }> {
   return Array.from(registry.entries()).map(([id, info]) => ({
     id,
     name: info.name,
     description: info.description,
+    hasEscp: !!info.escpFormat,
   }));
 }

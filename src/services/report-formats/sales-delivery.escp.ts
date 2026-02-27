@@ -5,7 +5,9 @@ import {
   drawSeparator,
   padText,
   textWidth,
+  type LineEntry,
 } from '../escp.service';
+import { FONT_LARGE, FONT_SMALL } from '../bitmap-font.service';
 
 /**
  * 銷貨單 ESC/P 版面 — 中一刀 241mm × 140mm（對齊 Photo 2）
@@ -82,21 +84,20 @@ const LINE_WIDTH = 118;
 /** 頁長：44 行 at 1/8" 行距 = 5.5" = 140mm */
 const PAGE_LINES = 44;
 
-/** 9 欄欄寬（半形字元數） */
+/** 9 欄欄寬（半形字元數）— v0.3.8 加寬名稱欄、壓縮其他欄 */
 const COL = {
-  englishName: 18,   // e.g. "METHATOCORAL"
-  productName: 16,   // e.g. "(特)滿可復膠囊" (8 CJK)
-  qty: 5,            // e.g. "192"
-  unit: 4,           // e.g. "盒"
-  spec: 10,          // e.g. "1000粒/盒"
-  unitPrice: 9,      // e.g. "1,880.00"
-  amount: 10,        // e.g. "191,040"
-  lotNumber: 8,      // e.g. "56A28T"
-  expiryDate: 10,    // e.g. "2028-06-12"
+  englishName: 22,   // was 18 (+4), e.g. "CALCIUM CARBONATE TABLET"
+  productName: 20,   // was 16 (+4), e.g. "碳酸鈣嚼錠" (10 CJK)
+  qty: 5,            // same
+  unit: 3,           // was 4 (-1)
+  spec: 8,           // was 10 (-2)
+  unitPrice: 8,      // was 9 (-1)
+  amount: 9,         // was 10 (-1)
+  lotNumber: 7,      // was 8 (-1)
+  expiryDate: 8,     // was 10 (-2)
 } as const;
-// Data: 18+16+5+4+10+9+10+8+10 = 90
-// Borders: 10 separators × 3 chars (space+pipe+space) = 28... actually:
-// | col | col | ... | → 10 pipes + 9×2 padding = 28
+// Data: 22+20+5+3+8+8+9+7+8 = 90
+// Borders: 10 pipes + 9×2 padding = 28
 // Grand total: 90 + 28 = 118 ✓
 
 /** 分隔符字元 */
@@ -162,16 +163,20 @@ export const salesDeliveryEscp: EscpFormatFn = (rawData) => {
   const pageNum = data.pageNumber ?? 1;
   const totalPages = data.totalPages ?? 1;
 
-  const lines: string[] = [];
+  const lines: LineEntry[] = [];
 
-  // ── 表頭 Line 1: 公司名稱（左）+ 銷貨單（右） ──
+  // ── 標題「銷貨單」— 大字型（2 行高） ──
   const companyName = company.name ?? '';
   const title = '銷貨單';
+  // 大字型標題：公司名稱在左 + 銷貨單在右，使用 FONT_LARGE
   const titleWidth = textWidth(title);
-  lines.push(buildLine([
-    { text: companyName, width: LINE_WIDTH - titleWidth, align: 'left' },
-    { text: title, width: titleWidth, align: 'right' },
-  ]));
+  lines.push({
+    text: buildLine([
+      { text: companyName, width: LINE_WIDTH - titleWidth, align: 'left' },
+      { text: title, width: titleWidth, align: 'right' },
+    ]),
+    fontSize: FONT_LARGE,
+  });
 
   // ── 表頭 Line 2: 地址（左）+ 公司編碼 + 頁碼（右） ──
   const addressText = company.address ?? '';
@@ -239,10 +244,12 @@ export const salesDeliveryEscp: EscpFormatFn = (rawData) => {
     { text: docInfo.invoiceNumber ?? '', width: v2 },
   ]));
 
-  // ── 明細表格（9 欄） ──
+  // ── 明細表格（9 欄）— 使用 FONT_SMALL 渲染 ──
+  const small = (text: string): LineEntry => ({ text, fontSize: FONT_SMALL });
+
   const colDefs = [
     { text: '英文品名', width: COL.englishName, align: 'center' as const },
-    { text: '真品名稱', width: COL.productName, align: 'center' as const },
+    { text: '貨品名稱', width: COL.productName, align: 'center' as const },
     { text: '數量', width: COL.qty, align: 'center' as const },
     { text: '單位', width: COL.unit, align: 'center' as const },
     { text: '規格', width: COL.spec, align: 'center' as const },
@@ -252,11 +259,11 @@ export const salesDeliveryEscp: EscpFormatFn = (rawData) => {
     { text: '有效日期', width: COL.expiryDate, align: 'center' as const },
   ];
 
-  lines.push(tableSeparator());
-  lines.push(tableRow(colDefs));
-  lines.push(tableSeparator());
+  lines.push(small(tableSeparator()));
+  lines.push(small(tableRow(colDefs)));
+  lines.push(small(tableSeparator()));
 
-  // 明細行 — 支援 multi-line（英文品名/真品名稱自動換行）
+  // 明細行 — 支援 multi-line（英文品名/貨品名稱自動換行）
   let dataRowCount = 0;
   for (const item of items) {
     const engLines = wrapText(item.englishName ?? '', COL.englishName);
@@ -265,7 +272,7 @@ export const salesDeliveryEscp: EscpFormatFn = (rawData) => {
 
     for (let r = 0; r < rowHeight; r++) {
       const isFirstLine = r === 0;
-      lines.push(tableRow([
+      lines.push(small(tableRow([
         { text: engLines[r] ?? '', width: COL.englishName },
         { text: nameLines[r] ?? '', width: COL.productName },
         { text: isFirstLine ? fmt(item.qty) : '', width: COL.qty, align: 'right' },
@@ -275,7 +282,7 @@ export const salesDeliveryEscp: EscpFormatFn = (rawData) => {
         { text: isFirstLine ? fmt(item.amount) : '', width: COL.amount, align: 'right' },
         { text: isFirstLine ? (item.lotNumber ?? '') : '', width: COL.lotNumber, align: 'center' },
         { text: isFirstLine ? (item.expiryDate ?? '') : '', width: COL.expiryDate, align: 'center' },
-      ]));
+      ])));
       dataRowCount++;
     }
   }
@@ -286,10 +293,10 @@ export const salesDeliveryEscp: EscpFormatFn = (rawData) => {
     Object.values(COL).map(w => ({ text: '', width: w }))
   );
   for (let i = dataRowCount; i < minRows; i++) {
-    lines.push(emptyRow);
+    lines.push(small(emptyRow));
   }
 
-  lines.push(tableSeparator());
+  lines.push(small(tableSeparator()));
 
   // ── 合計區（對齊 Photo 2：總計 / 折讓 / 收） ──
   const totalLine = buildLine([
