@@ -212,15 +212,6 @@ function downloadFile(url: string, destPath: string, maxRedirects = 5, timeoutMs
   });
 }
 
-/** Escape a string for embedding in a PowerShell double-quoted string.
- *  Note: backslashes are NOT escape chars in PS — only backtick is. */
-function escapePsString(s: string): string {
-  return s
-    .replace(/`/g, '``')
-    .replace(/"/g, '`"')
-    .replace(/\$/g, '`$');
-}
-
 export async function applyUpdate(downloadUrl: string, version: string): Promise<{ message: string }> {
   if (!config.isPkg) {
     throw new Error('Auto-update is only available in the packaged exe version');
@@ -238,9 +229,10 @@ export async function applyUpdate(downloadUrl: string, version: string): Promise
 
   const exePath = process.execPath;
   const exeDir = path.dirname(exePath);
-  const exeName = path.basename(exePath);
   const updateExePath = path.join(config.outputDir, `update-${version}.exe`);
-  const scriptPath = path.join(config.outputDir, 'update.ps1');
+  const scriptPath = path.join(config.outputDir, 'update.cmd');
+  const logPath = path.join(config.outputDir, 'update.log');
+  const pid = process.pid;
 
   fs.mkdirSync(config.outputDir, { recursive: true });
 
@@ -253,69 +245,63 @@ export async function applyUpdate(downloadUrl: string, version: string): Promise
     throw new Error('Downloaded file is too small, likely corrupted');
   }
 
-  const psProcessName = escapePsString(path.parse(exeName).name);
-  const psUpdatePath = escapePsString(updateExePath);
-  const psExePath = escapePsString(exePath);
-  const psExeDir = escapePsString(exeDir);
-  const psLogPath = escapePsString(path.join(config.outputDir, 'update.log'));
+  const cmdScript = `@echo off
+echo [%date% %time%] Update started >> "${logPath}"
 
-  const psScript = `
-# NodeJsReport Auto-Update Script
-$logFile = "${psLogPath}"
-function Log($msg) { "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') $msg" | Out-File -Append -FilePath $logFile }
+REM Wait for Node process to exit gracefully
+timeout /t 3 /nobreak >nul
 
-Log "Update started"
-Start-Sleep -Seconds 3
+REM Force kill by PID if still running
+taskkill /PID ${pid} /F >nul 2>&1
+timeout /t 2 /nobreak >nul
 
-# Wait for the old process to exit
-$processName = "${psProcessName}"
-$maxWait = 30
-$waited = 0
-while ((Get-Process -Name $processName -ErrorAction SilentlyContinue) -and $waited -lt $maxWait) {
-    Start-Sleep -Seconds 1
-    $waited++
-}
-Log "Waited $waited seconds for process to exit"
+REM Delete old backup if exists
+del /F "${exePath}.old" >nul 2>&1
 
-# Force kill if still running
-Stop-Process -Name $processName -Force -ErrorAction SilentlyContinue
-Start-Sleep -Seconds 2
+REM Rename current exe to .old (retry up to 5 times)
+set RETRY=0
+:RENAME_LOOP
+if %RETRY% GEQ 5 goto RENAME_FAIL
+move /Y "${exePath}" "${exePath}.old" >nul 2>&1
+if %ERRORLEVEL% EQU 0 goto RENAME_OK
+set /A RETRY+=1
+echo [%date% %time%] Rename attempt %RETRY% failed, retrying... >> "${logPath}"
+timeout /t 2 /nobreak >nul
+goto RENAME_LOOP
 
-# Replace the exe
-try {
-    Copy-Item "${psUpdatePath}" -Destination "${psExePath}" -Force
-    Log "File copied successfully"
-} catch {
-    Log "Copy failed: $_"
-    exit 1
-}
+:RENAME_OK
+echo [%date% %time%] Rename succeeded >> "${logPath}"
 
-# Clean up the update file
-Remove-Item "${psUpdatePath}" -Force -ErrorAction SilentlyContinue
+REM Move new exe into place
+move /Y "${updateExePath}" "${exePath}" >nul 2>&1
+if %ERRORLEVEL% NEQ 0 (
+    echo [%date% %time%] Move new exe failed, rolling back >> "${logPath}"
+    move /Y "${exePath}.old" "${exePath}" >nul 2>&1
+    goto END
+)
+echo [%date% %time%] New exe in place >> "${logPath}"
 
-# Restart the application
-try {
-    Start-Process -FilePath "${psExePath}" -WorkingDirectory "${psExeDir}"
-    Log "Process started successfully"
-} catch {
-    Log "Start failed: $_"
-    exit 1
-}
+REM Start the new version
+start "" "${exePath}"
+echo [%date% %time%] New process started >> "${logPath}"
 
-# Self-delete
-Start-Sleep -Seconds 3
-Remove-Item $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue
-`.trim();
+REM Cleanup
+del /F "${exePath}.old" >nul 2>&1
+timeout /t 2 /nobreak >nul
+del /F "%~f0" >nul 2>&1
+goto END
 
-  fs.writeFileSync(scriptPath, psScript, 'utf-8');
+:RENAME_FAIL
+echo [%date% %time%] Rename failed after 5 retries >> "${logPath}"
+
+:END
+`;
+
+  fs.writeFileSync(scriptPath, cmdScript, 'utf-8');
 
   logger.info({ scriptPath }, 'Update script created, launching update process');
 
-  const child = spawn('powershell.exe', [
-    '-ExecutionPolicy', 'Bypass',
-    '-NoProfile',
-    '-File', scriptPath,
-  ], {
+  const child = spawn('cmd.exe', ['/c', scriptPath], {
     detached: true,
     stdio: 'ignore',
     windowsHide: true,
