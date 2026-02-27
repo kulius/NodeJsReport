@@ -13,5 +13,5 @@ export const BUILT_IN_PAPER_SIZES: readonly PaperSize[] = [
   { id: 'B5', name: 'B5 (JIS)', widthMm: 182, heightMm: 257, builtIn: true },
   { id: 'LETTER', name: 'Letter', widthMm: 216, heightMm: 279, builtIn: true },
   { id: 'LEGAL', name: 'Legal', widthMm: 216, heightMm: 356, builtIn: true },
-  { id: 'HALF_CUT', name: '中一刀', widthMm: 140, heightMm: 210, builtIn: true },
+  { id: 'HALF_CUT', name: '中一刀', widthMm: 241, heightMm: 140, builtIn: true },
 ] as const;

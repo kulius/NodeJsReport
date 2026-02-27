@@ -11,26 +11,24 @@ function createPrinter(): PdfPrinter {
   const notoRegular = path.join(config.fontDir, 'NotoSansTC-Regular.ttf');
   const notoBold = path.join(config.fontDir, 'NotoSansTC-Bold.ttf');
 
-  // Fallback to Roboto if CJK font not available
   const hasNoto = fs.existsSync(notoRegular);
 
-  const fonts: Record<string, Record<string, string>> = hasNoto
-    ? {
-        NotoSansTC: {
-          normal: notoRegular,
-          bold: notoBold || notoRegular,
-          italics: notoRegular,
-          bolditalics: notoBold || notoRegular,
-        },
-      }
-    : {
-        Roboto: {
-          normal: path.join(__dirname, '..', '..', 'node_modules', 'pdfmake', 'build', 'vfs_fonts.js'),
-          bold: path.join(__dirname, '..', '..', 'node_modules', 'pdfmake', 'build', 'vfs_fonts.js'),
-          italics: path.join(__dirname, '..', '..', 'node_modules', 'pdfmake', 'build', 'vfs_fonts.js'),
-          bolditalics: path.join(__dirname, '..', '..', 'node_modules', 'pdfmake', 'build', 'vfs_fonts.js'),
-        },
-      };
+  if (!hasNoto) {
+    throw new Error(
+      '缺少 CJK 字型檔案。請將 NotoSansTC-Regular.ttf 放到 data/fonts/ 目錄。'
+    );
+  }
+
+  const boldFont = fs.existsSync(notoBold) ? notoBold : notoRegular;
+
+  const fonts: Record<string, Record<string, string>> = {
+    NotoSansTC: {
+      normal: notoRegular,
+      bold: boldFont,
+      italics: notoRegular,
+      bolditalics: boldFont,
+    },
+  };
 
   return new PdfPrinter(fonts);
 }
@@ -132,9 +130,7 @@ export async function excelToPdf(
     pageSize: { width: pageDims.width, height: pageDims.height },
     pageMargins: [30, 30, 30, 30] as [number, number, number, number],
     defaultStyle: {
-      font: fs.existsSync(path.join(config.fontDir, 'NotoSansTC-Regular.ttf'))
-        ? 'NotoSansTC'
-        : 'Roboto',
+      font: 'NotoSansTC',
       fontSize: 10,
     },
     content,

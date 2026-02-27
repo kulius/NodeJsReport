@@ -290,7 +290,13 @@ function handleFileSelect(file) {
 }
 
 async function excelPrint() {
-  if (!selectedFile) return;
+  if (!selectedFile) {
+    showToast('請先選擇 Excel 檔案', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('btn-excel-print');
+  btn.disabled = true;
 
   const formData = new FormData();
   formData.append('file', selectedFile);
@@ -308,12 +314,21 @@ async function excelPrint() {
       showToast(`列印失敗: ${result.error}`, 'error');
     }
   } catch (error) {
-    showToast('列印失敗', 'error');
+    console.error('Excel print error:', error);
+    showToast(`列印失敗: ${error.message || '網路錯誤'}`, 'error');
+  } finally {
+    btn.disabled = false;
   }
 }
 
 async function excelPreview() {
-  if (!selectedFile) return;
+  if (!selectedFile) {
+    showToast('請先選擇 Excel 檔案', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('btn-excel-preview');
+  btn.disabled = true;
 
   const formData = new FormData();
   formData.append('file', selectedFile);
@@ -330,7 +345,10 @@ async function excelPreview() {
       showToast(`預覽失敗: ${result.error}`, 'error');
     }
   } catch (error) {
-    showToast('預覽失敗', 'error');
+    console.error('Excel preview error:', error);
+    showToast(`預覽失敗: ${error.message || '網路錯誤'}`, 'error');
+  } finally {
+    btn.disabled = false;
   }
 }
 

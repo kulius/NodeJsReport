@@ -8,6 +8,7 @@ import { logger } from './utils/logger';
 import { initPaperSizes, getAllPaperSizes, addCustomPaperSize } from './services/paper-size.service';
 import { loadTemplates } from './services/template.service';
 import { autoStartWatcher, setWatcherEventHandler } from './services/watcher.service';
+import { ensureDesktopShortcut } from './services/shortcut.service';
 
 // Routes
 import printerRoutes from './routes/printer.routes';
@@ -20,6 +21,7 @@ import jobRoutes from './routes/job.routes';
 import watcherRoutes from './routes/watcher.routes';
 import excelRoutes from './routes/excel.routes';
 import updaterRoutes from './routes/updater.routes';
+import generateRoutes from './routes/generate.routes';
 
 const app = express();
 const server = http.createServer(app);
@@ -48,6 +50,7 @@ app.use('/api/jobs', jobRoutes);
 app.use('/api/watcher', watcherRoutes);
 app.use('/api/excel', excelRoutes);
 app.use('/api/updater', updaterRoutes);
+app.use('/api/generate', generateRoutes);
 
 // Paper sizes API (inline, small enough)
 app.get('/api/paper-sizes', (_req, res) => {
@@ -105,6 +108,9 @@ server.listen(config.port, config.host, () => {
 
   // Auto-start watcher if configured
   autoStartWatcher();
+
+  // Create desktop shortcut on first run (pkg only)
+  ensureDesktopShortcut();
 });
 
 export { app, server, io };
