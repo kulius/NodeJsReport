@@ -301,7 +301,7 @@ echo [%date% %time%] Rename failed after 5 retries >> "${logPath}"
 
   logger.info({ scriptPath }, 'Update script created, launching update process');
 
-  const child = spawn('cmd.exe', ['/c', scriptPath], {
+  const child = spawn('cmd.exe', ['/c', 'start', '/min', '""', scriptPath], {
     detached: true,
     stdio: 'ignore',
     windowsHide: true,
