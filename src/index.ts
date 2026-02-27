@@ -9,6 +9,7 @@ import { initPaperSizes, getAllPaperSizes, addCustomPaperSize } from './services
 import { loadTemplates } from './services/template.service';
 import { autoStartWatcher, setWatcherEventHandler } from './services/watcher.service';
 import { ensureDesktopShortcut } from './services/shortcut.service';
+import { ensureFonts } from './utils/font-init';
 
 // Routes
 import printerRoutes from './routes/printer.routes';
@@ -100,6 +101,7 @@ setWatcherEventHandler((event, data) => {
 // Initialize services
 initPaperSizes();
 loadTemplates();
+ensureFonts().catch((err) => logger.error({ error: String(err) }, 'Font init failed'));
 
 // Start server
 server.listen(config.port, config.host, () => {

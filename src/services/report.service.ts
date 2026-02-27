@@ -10,29 +10,23 @@ import type { ReportDefinition } from '../models/report-definition.model';
 function createPrinter(): PdfPrinter {
   const notoRegular = path.join(config.fontDir, 'NotoSansTC-Regular.ttf');
   const notoBold = path.join(config.fontDir, 'NotoSansTC-Bold.ttf');
-  const hasNoto = fs.existsSync(notoRegular);
 
-  if (!hasNoto) {
-    logger.warn('NotoSansTC font not found, falling back to Roboto (CJK may not render)');
+  if (!fs.existsSync(notoRegular)) {
+    throw new Error(
+      '缺少 CJK 字型檔案。請將 NotoSansTC-Regular.ttf 放到 data/fonts/ 目錄，或重啟服務讓自動下載完成。'
+    );
   }
 
-  const fonts: Record<string, Record<string, string>> = hasNoto
-    ? {
-        NotoSansTC: {
-          normal: notoRegular,
-          bold: fs.existsSync(notoBold) ? notoBold : notoRegular,
-          italics: notoRegular,
-          bolditalics: fs.existsSync(notoBold) ? notoBold : notoRegular,
-        },
-      }
-    : {
-        Roboto: {
-          normal: path.join(__dirname, '..', '..', 'node_modules', 'pdfmake', 'build', 'vfs_fonts.js'),
-          bold: path.join(__dirname, '..', '..', 'node_modules', 'pdfmake', 'build', 'vfs_fonts.js'),
-          italics: path.join(__dirname, '..', '..', 'node_modules', 'pdfmake', 'build', 'vfs_fonts.js'),
-          bolditalics: path.join(__dirname, '..', '..', 'node_modules', 'pdfmake', 'build', 'vfs_fonts.js'),
-        },
-      };
+  const boldFont = fs.existsSync(notoBold) ? notoBold : notoRegular;
+
+  const fonts: Record<string, Record<string, string>> = {
+    NotoSansTC: {
+      normal: notoRegular,
+      bold: boldFont,
+      italics: notoRegular,
+      bolditalics: boldFont,
+    },
+  };
 
   return new PdfPrinter(fonts);
 }
@@ -59,9 +53,7 @@ function resolvePageSize(
 export async function generateReport(definition: ReportDefinition): Promise<Buffer> {
   logger.info({ pageSize: definition.pageSize }, 'Generating report PDF');
 
-  const fontName = fs.existsSync(path.join(config.fontDir, 'NotoSansTC-Regular.ttf'))
-    ? 'NotoSansTC'
-    : 'Roboto';
+  const fontName = 'NotoSansTC';
 
   const docDefinition = {
     pageSize: resolvePageSize(definition.pageSize),
