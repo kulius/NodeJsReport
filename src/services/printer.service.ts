@@ -5,6 +5,29 @@ import { v4 as uuidv4 } from 'uuid';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 
+/**
+ * In pkg, SumatraPDF is inside the snapshot filesystem and cannot be spawned.
+ * Copy it to an external path on first use.
+ */
+function getSumatraPdfPath(): string | undefined {
+  if (!config.isPkg) return undefined;
+
+  const externalPath = path.join(config.dataDir, 'SumatraPDF-3.4.6-32.exe');
+  if (fs.existsSync(externalPath)) return externalPath;
+
+  // Copy from snapshot (inside node_modules packed as asset)
+  const snapshotPath = path.join(__dirname, '..', '..', 'node_modules', 'pdf-to-printer', 'dist', 'SumatraPDF-3.4.6-32.exe');
+  try {
+    fs.mkdirSync(path.dirname(externalPath), { recursive: true });
+    fs.copyFileSync(snapshotPath, externalPath);
+    logger.info({ externalPath }, 'SumatraPDF extracted from snapshot');
+    return externalPath;
+  } catch (error) {
+    logger.error({ error }, 'Failed to extract SumatraPDF');
+    return undefined;
+  }
+}
+
 export interface PrinterInfo {
   readonly name: string;
   readonly isDefault: boolean;
@@ -55,6 +78,11 @@ export async function printPdfBuffer(
     }
     if (options.copies && options.copies > 1) {
       printOptions.copies = String(options.copies);
+    }
+
+    const sumatraPath = getSumatraPdfPath();
+    if (sumatraPath) {
+      (printOptions as any).sumatraPdfPath = sumatraPath;
     }
 
     await print(tmpFile, printOptions);
