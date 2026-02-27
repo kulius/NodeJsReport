@@ -1,6 +1,6 @@
 {
   "name": "nodejs-report",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Node.js 印表機控制服務 - REST API + Web UI",
   "main": "dist/index.js",
   "bin": "dist/index.js",

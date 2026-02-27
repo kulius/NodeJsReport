@@ -5,7 +5,7 @@ import path from 'path';
 import { generateReport } from '../services/report.service';
 import { printPdfBuffer } from '../services/printer.service';
 import { createJob, updateJobStatus } from '../services/job-queue.service';
-import { getFormat, listFormats } from '../services/report-formats';
+import { getFormat, getSchema, listFormats } from '../services/report-formats';
 import { generateRequestSchema } from '../validators/generate.validator';
 import { config } from '../config';
 
@@ -37,6 +37,13 @@ router.get('/schema/:formatId', (req: Request, res: Response) => {
     });
   }
 
+  // 1. 優先從 registry 內嵌 schema 讀取（exe 打包後也能用）
+  const embedded = getSchema(formatId);
+  if (embedded) {
+    return res.json({ success: true, data: embedded });
+  }
+
+  // 2. Fallback: 從 data/schemas/ 外部檔案讀取
   const schemaPath = path.join(schemasDir, `${formatId}.schema.json`);
 
   if (!fs.existsSync(schemaPath)) {

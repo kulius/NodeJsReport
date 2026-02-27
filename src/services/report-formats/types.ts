@@ -8,4 +8,6 @@ export interface ReportFormatInfo {
   readonly name: string;
   readonly description: string;
   readonly format: ReportFormatFn;
+  /** JSON Schema（含 examples），內嵌後不依賴外部檔案 */
+  readonly schema?: Record<string, unknown>;
 }
