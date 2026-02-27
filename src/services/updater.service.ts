@@ -212,12 +212,13 @@ function downloadFile(url: string, destPath: string, maxRedirects = 5, timeoutMs
   });
 }
 
+/** Escape a string for embedding in a PowerShell double-quoted string.
+ *  Note: backslashes are NOT escape chars in PS — only backtick is. */
 function escapePsString(s: string): string {
   return s
     .replace(/`/g, '``')
     .replace(/"/g, '`"')
-    .replace(/\$/g, '`$')
-    .replace(/\\/g, '\\\\');
+    .replace(/\$/g, '`$');
 }
 
 export async function applyUpdate(downloadUrl: string, version: string): Promise<{ message: string }> {
@@ -255,9 +256,15 @@ export async function applyUpdate(downloadUrl: string, version: string): Promise
   const psProcessName = escapePsString(path.parse(exeName).name);
   const psUpdatePath = escapePsString(updateExePath);
   const psExePath = escapePsString(exePath);
+  const psExeDir = escapePsString(exeDir);
+  const psLogPath = escapePsString(path.join(config.outputDir, 'update.log'));
 
   const psScript = `
 # NodeJsReport Auto-Update Script
+$logFile = "${psLogPath}"
+function Log($msg) { "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') $msg" | Out-File -Append -FilePath $logFile }
+
+Log "Update started"
 Start-Sleep -Seconds 3
 
 # Wait for the old process to exit
@@ -268,22 +275,35 @@ while ((Get-Process -Name $processName -ErrorAction SilentlyContinue) -and $wait
     Start-Sleep -Seconds 1
     $waited++
 }
+Log "Waited $waited seconds for process to exit"
 
 # Force kill if still running
 Stop-Process -Name $processName -Force -ErrorAction SilentlyContinue
-Start-Sleep -Seconds 1
+Start-Sleep -Seconds 2
 
 # Replace the exe
-Copy-Item "${psUpdatePath}" -Destination "${psExePath}" -Force
+try {
+    Copy-Item "${psUpdatePath}" -Destination "${psExePath}" -Force
+    Log "File copied successfully"
+} catch {
+    Log "Copy failed: $_"
+    exit 1
+}
 
 # Clean up the update file
 Remove-Item "${psUpdatePath}" -Force -ErrorAction SilentlyContinue
 
 # Restart the application
-Start-Process "${psExePath}"
+try {
+    Start-Process -FilePath "${psExePath}" -WorkingDirectory "${psExeDir}"
+    Log "Process started successfully"
+} catch {
+    Log "Start failed: $_"
+    exit 1
+}
 
 # Self-delete
-Start-Sleep -Seconds 2
+Start-Sleep -Seconds 3
 Remove-Item $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue
 `.trim();
 

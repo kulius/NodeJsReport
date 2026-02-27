@@ -1,32 +1,21 @@
-import { execSync } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 
-const SHORTCUT_NAME = 'NodeJsReport.lnk';
+const SHORTCUT_NAME = 'NodeJsReport.url';
 const MARKER_FILE = path.join(config.dataDir, '.shortcut-created');
 
 function getDesktopPath(): string {
   return path.join(os.homedir(), 'Desktop');
 }
 
-function createShortcut(targetUrl: string, shortcutPath: string): boolean {
-  const ps1 = `
-$ws = New-Object -ComObject WScript.Shell
-$sc = $ws.CreateShortcut('${shortcutPath.replace(/'/g, "''")}')
-$sc.TargetPath = '${targetUrl}'
-$sc.IconLocation = 'shell32.dll,14'
-$sc.Description = 'NodeJsReport 列印服務'
-$sc.Save()
-`;
-
+/** Create a .url shortcut (no COM dependency, works on all Windows) */
+function createUrlShortcut(targetUrl: string, shortcutPath: string): boolean {
   try {
-    execSync(`powershell -NoProfile -Command "${ps1.replace(/"/g, '\\"').replace(/\n/g, ' ')}"`, {
-      windowsHide: true,
-      timeout: 10000,
-    });
+    const content = `[InternetShortcut]\r\nURL=${targetUrl}\r\nIconIndex=14\r\nIconFile=shell32.dll\r\n`;
+    fs.writeFileSync(shortcutPath, content, 'utf-8');
     return true;
   } catch (error) {
     logger.error({ error }, 'Failed to create desktop shortcut');
@@ -49,7 +38,7 @@ export function ensureDesktopShortcut(): void {
   }
 
   const url = `http://localhost:${config.port}`;
-  const ok = createShortcut(url, shortcutPath);
+  const ok = createUrlShortcut(url, shortcutPath);
 
   if (ok) {
     fs.writeFileSync(MARKER_FILE, new Date().toISOString(), 'utf-8');
