@@ -69,15 +69,15 @@ const PAGE_LINES = 44;
 
 /** 明細 9 欄欄寬 */
 const COL = {
-  englishName: 22,
-  productName: 20,
+  englishName: 21,
+  productName: 19,
   qty: 5,
   unit: 3,
   spec: 8,
   unitPrice: 8,
   amount: 9,
   lotNumber: 7,
-  expiryDate: 8,
+  expiryDate: 10,
 } as const;
 
 /**
@@ -162,7 +162,8 @@ function infoRow(
     + SEP_V;
 }
 
-export const quotationEscp: EscpFormatFn = (rawData) => {
+/** Build LineEntry[] for quotation (shared by print + preview) */
+export function quotationEscpLines(rawData: Record<string, unknown>): LineEntry[] {
   const data = rawData as unknown as QuotationData;
   const customer = data.customer ?? {};
   const docInfo = data.docInfo ?? {};
@@ -311,7 +312,11 @@ export const quotationEscp: EscpFormatFn = (rawData) => {
     { text: totalDueStr, width: totalDueValW, align: 'right' },
   ]));
 
-  // ── 組合成 ESC/P buffer ──
+  return lines;
+}
+
+export const quotationEscp: EscpFormatFn = (rawData) => {
+  const lines = quotationEscpLines(rawData);
   return buildEscpFromBitmapLines({
     lines,
     formFeed: true,

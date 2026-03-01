@@ -5,7 +5,7 @@ import { config } from '../config';
 
 const router = Router();
 
-/** GET /api/preview/:id - Serve a preview PDF */
+/** GET /api/preview/:id - Serve a preview file (PDF or PNG) */
 router.get('/:id', (req: Request, res: Response) => {
   const previewId = String(req.params.id);
 
@@ -14,14 +14,21 @@ router.get('/:id', (req: Request, res: Response) => {
     return res.status(400).json({ success: false, error: 'Invalid preview ID' });
   }
 
-  const filePath = path.join(config.outputDir, `preview-${previewId}.pdf`);
+  // Try PNG first, then PDF
+  const pngPath = path.join(config.outputDir, `preview-${previewId}.png`);
+  const pdfPath = path.join(config.outputDir, `preview-${previewId}.pdf`);
 
-  if (!fs.existsSync(filePath)) {
-    return res.status(404).json({ success: false, error: 'Preview not found or expired' });
+  if (fs.existsSync(pngPath)) {
+    res.setHeader('Content-Type', 'image/png');
+    return res.sendFile(pngPath);
   }
 
-  res.setHeader('Content-Type', 'application/pdf');
-  res.sendFile(filePath);
+  if (fs.existsSync(pdfPath)) {
+    res.setHeader('Content-Type', 'application/pdf');
+    return res.sendFile(pdfPath);
+  }
+
+  return res.status(404).json({ success: false, error: 'Preview not found or expired' });
 });
 
 export default router;

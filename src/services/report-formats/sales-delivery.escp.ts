@@ -84,19 +84,19 @@ const LINE_WIDTH = 118;
 /** 頁長：44 行 at 1/8" 行距 = 5.5" = 140mm */
 const PAGE_LINES = 44;
 
-/** 9 欄欄寬（半形字元數）— v0.3.8 加寬名稱欄、壓縮其他欄 */
+/** 9 欄欄寬（半形字元數）— v0.3.9 調整有效日期欄寬 */
 const COL = {
-  englishName: 22,   // was 18 (+4), e.g. "CALCIUM CARBONATE TABLET"
-  productName: 20,   // was 16 (+4), e.g. "碳酸鈣嚼錠" (10 CJK)
-  qty: 5,            // same
-  unit: 3,           // was 4 (-1)
-  spec: 8,           // was 10 (-2)
-  unitPrice: 8,      // was 9 (-1)
-  amount: 9,         // was 10 (-1)
-  lotNumber: 7,      // was 8 (-1)
-  expiryDate: 8,     // was 10 (-2)
+  englishName: 21,   // -1 for expiryDate space
+  productName: 19,   // -1 for expiryDate space
+  qty: 5,
+  unit: 3,
+  spec: 8,
+  unitPrice: 8,
+  amount: 9,
+  lotNumber: 7,
+  expiryDate: 10,    // +2 → fits full YYYY-MM-DD
 } as const;
-// Data: 22+20+5+3+8+8+9+7+8 = 90
+// Data: 21+19+5+3+8+8+9+7+10 = 90
 // Borders: 10 pipes + 9×2 padding = 28
 // Grand total: 90 + 28 = 118 ✓
 
@@ -148,12 +148,9 @@ function tableRow(cells: ReadonlyArray<{ readonly text: string; readonly width: 
 }
 
 /**
- * 銷貨單 ESC/P 格式（對齊 Photo 2 — 9 欄版面）
- *
- * 回傳 ESC/P command buffer，直接送到點陣印表機。
- * 不經過 pdfmake / SumatraPDF。
+ * Build LineEntry[] for sales delivery (shared by print + preview)
  */
-export const salesDeliveryEscp: EscpFormatFn = (rawData) => {
+export function salesDeliveryEscpLines(rawData: Record<string, unknown>): LineEntry[] {
   const data = rawData as unknown as SalesDeliveryData;
   const company = data.company ?? {};
   const customer = data.customer ?? {};
@@ -323,10 +320,14 @@ export const salesDeliveryEscp: EscpFormatFn = (rawData) => {
   ]);
   lines.push(sigLine);
 
-  // ── 組合成 ESC/P buffer（bitmap 圖形模式） ──
+  return lines;
+}
+
+export const salesDeliveryEscp: EscpFormatFn = (rawData) => {
+  const lines = salesDeliveryEscpLines(rawData);
   return buildEscpFromBitmapLines({
     lines,
     formFeed: true,
-    pageLines: PAGE_LINES, // 44 lines = 5.5" = 140mm 中一刀
+    pageLines: PAGE_LINES,
   });
 };

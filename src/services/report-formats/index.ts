@@ -1,10 +1,10 @@
-import type { ReportFormatFn, EscpFormatFn, ReportFormatInfo } from './types';
+import type { ReportFormatFn, EscpFormatFn, EscpLinesFn, ReportFormatInfo } from './types';
 import { autoFormat } from './auto.format';
 import { salesDeliveryFormat } from './sales-delivery.format';
 import { salesDeliverySchema } from './sales-delivery.schema';
-import { salesDeliveryEscp } from './sales-delivery.escp';
+import { salesDeliveryEscp, salesDeliveryEscpLines } from './sales-delivery.escp';
 import { quotationFormat } from './quotation.format';
-import { quotationEscp } from './quotation.escp';
+import { quotationEscp, quotationEscpLines } from './quotation.escp';
 import { quotationSchema } from './quotation.schema';
 
 /** 報表格式註冊表 — AI 產生的格式都在這裡註冊 */
@@ -27,6 +27,7 @@ register('sales_delivery', {
   description: '銷貨單（中一刀 241×140mm），含表頭、客戶資訊、明細、合計、簽名欄',
   format: salesDeliveryFormat,
   escpFormat: salesDeliveryEscp,
+  escpLines: salesDeliveryEscpLines,
   schema: salesDeliverySchema,
 });
 
@@ -35,6 +36,7 @@ register('quotation', {
   description: '估價單（中一刀 241×140mm），含客戶資訊、明細、合計',
   format: quotationFormat,
   escpFormat: quotationEscp,
+  escpLines: quotationEscpLines,
   schema: quotationSchema,
 });
 
@@ -46,6 +48,11 @@ export function getFormat(reportType: string): ReportFormatFn | undefined {
 /** 取得 ESC/P 格式函式 */
 export function getEscpFormat(reportType: string): EscpFormatFn | undefined {
   return registry.get(reportType)?.escpFormat;
+}
+
+/** 取得 ESC/P LineEntry 產生函式 */
+export function getEscpLines(reportType: string): EscpLinesFn | undefined {
+  return registry.get(reportType)?.escpLines;
 }
 
 /** 用 schemaId 查找內嵌 schema（schemaId 可用連字號或底線） */

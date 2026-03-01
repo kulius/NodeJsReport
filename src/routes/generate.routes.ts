@@ -4,9 +4,10 @@ import fs from 'fs';
 import path from 'path';
 import { generateReport } from '../services/report.service';
 import { printPdfBuffer } from '../services/printer.service';
-import { sendEscpToLocalPrinter } from '../services/escp.service';
+import { sendEscpToLocalPrinter, buildRenderedLines } from '../services/escp.service';
 import { createJob, updateJobStatus } from '../services/job-queue.service';
-import { getFormat, getEscpFormat, getSchema, listFormats } from '../services/report-formats';
+import { getFormat, getEscpFormat, getEscpLines, getSchema, listFormats } from '../services/report-formats';
+import { renderedLinesToPng } from '../services/bitmap-preview.service';
 import { generateRequestSchema } from '../validators/generate.validator';
 import { config } from '../config';
 
@@ -99,6 +100,52 @@ router.post('/', async (req: Request, res: Response) => {
       return res.send(escpBuffer);
     }
 
+    // ── ESC/P 預覽模式：產生 PNG 點陣圖預覽 ──
+    if (parsed.mode === 'escp_preview') {
+      if (parsed.action === 'print') {
+        return res.status(400).json({
+          success: false,
+          error: 'mode="escp_preview" does not support action="print". Use action="preview" or "download".',
+        });
+      }
+
+      const escpLinesFn = getEscpLines(parsed.reportType);
+      if (!escpLinesFn) {
+        const available = listFormats().filter(f => f.hasEscp).map(f => f.id);
+        return res.status(400).json({
+          success: false,
+          error: `No ESC/P preview for "${parsed.reportType}". Available: ${available.join(', ') || '(none)'}`,
+        });
+      }
+
+      const lineEntries = escpLinesFn(parsed.data);
+      const renderedLines = buildRenderedLines({ lines: lineEntries });
+      const pngBuffer = renderedLinesToPng(renderedLines);
+
+      if (parsed.action === 'download') {
+        res.setHeader('Content-Type', 'image/png');
+        res.setHeader('Content-Disposition', `attachment; filename="${parsed.reportType}-preview.png"`);
+        return res.send(pngBuffer);
+      }
+
+      // preview: save PNG and return URL
+      const previewId = uuidv4();
+      const previewPath = path.join(config.outputDir, `preview-${previewId}.png`);
+      fs.writeFileSync(previewPath, pngBuffer);
+
+      // Auto-cleanup after 1 hour
+      setTimeout(() => {
+        try { if (fs.existsSync(previewPath)) fs.unlinkSync(previewPath); } catch { /* ignore */ }
+      }, 60 * 60 * 1000);
+
+      return res.json({
+        success: true,
+        action: 'preview',
+        previewId,
+        previewUrl: `/api/preview/${previewId}`,
+      });
+    }
+
     // ── ESC/P 模式：直接送 raw bytes 到點陣印表機 ──
     if (parsed.mode === 'escp') {
       const escpFn = getEscpFormat(parsed.reportType);
@@ -114,7 +161,7 @@ router.post('/', async (req: Request, res: Response) => {
       if (parsed.action !== 'print') {
         return res.status(400).json({
           success: false,
-          error: 'ESC/P mode only supports action="print". Use mode="pdf" for preview/download.',
+          error: 'ESC/P mode only supports action="print". Use mode="escp_preview" for preview, or mode="pdf" for PDF preview/download.',
         });
       }
 

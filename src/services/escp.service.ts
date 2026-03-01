@@ -6,7 +6,7 @@ import { randomUUID } from 'crypto';
 import iconv from 'iconv-lite';
 import { logger } from '../utils/logger';
 import { config } from '../config';
-import { renderLine, type FontSize, FONT_NORMAL } from './bitmap-font.service';
+import { renderLine, type FontSize, type RenderedLine, FONT_NORMAL } from './bitmap-font.service';
 
 /**
  * ESC/P Command Builder for dot-matrix printers (e.g., EPSON LQ series).
@@ -469,6 +469,33 @@ export function buildEscpFromBitmapLines(options: {
   }
 
   return Buffer.concat(parts);
+}
+
+/**
+ * Build RenderedLine[] from text lines (without encoding to ESC/P).
+ * Used by bitmap preview to get raw pixel data.
+ */
+export function buildRenderedLines(options: {
+  readonly lines: readonly LineEntry[];
+  readonly pageLines?: number;
+}): RenderedLine[] {
+  const { lines } = options;
+  const result: RenderedLine[] = [];
+
+  for (const entry of lines) {
+    const lineText = typeof entry === 'string' ? entry : entry.text;
+    const fontSize = typeof entry === 'string' ? FONT_NORMAL : entry.fontSize;
+
+    if (!lineText || lineText.trim().length === 0) {
+      // Empty line: push a zero-width rendered line
+      result.push({ width: 0, columns: Buffer.alloc(0), bandCount: 1, bands: [Buffer.alloc(0)] });
+      continue;
+    }
+
+    result.push(renderLine(lineText, fontSize));
+  }
+
+  return result;
 }
 
 /** Send ESC/P buffer to a printer via TCP socket (RAW port 9100) */
