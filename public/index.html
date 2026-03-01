@@ -112,11 +112,15 @@
     <div class="card">
       <h2>測試列印</h2>
       <p class="text-sm text-muted mb-2">使用內建範例資料產生報表，驗證格式是否正確。</p>
-      <div class="flex gap-2">
+      <div class="flex gap-2 flex-wrap">
         <button class="btn btn-primary" onclick="testFormat('sales_delivery', 'preview')">銷貨單 預覽</button>
         <button class="btn btn-success" onclick="testFormat('sales_delivery', 'print')">銷貨單 列印</button>
         <button class="btn btn-success" onclick="testFormat('sales_delivery', 'print', 'escp')" style="background:#e67e22">銷貨單 ESC/P 列印</button>
         <button class="btn btn-outline" onclick="testFormat('sales_delivery', 'download', 'escp_debug')" style="border-color:#e67e22;color:#e67e22">ESC/P 下載 .prn</button>
+      </div>
+      <div class="flex gap-2 flex-wrap" style="margin-top:8px">
+        <button class="btn btn-primary" onclick="testFormat('quotation', 'preview')">估價單 預覽</button>
+        <button class="btn btn-success" onclick="testFormat('quotation', 'print')">估價單 列印</button>
       </div>
     </div>
 
