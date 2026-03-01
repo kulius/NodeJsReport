@@ -4,6 +4,7 @@ import { salesDeliveryFormat } from './sales-delivery.format';
 import { salesDeliverySchema } from './sales-delivery.schema';
 import { salesDeliveryEscp } from './sales-delivery.escp';
 import { quotationFormat } from './quotation.format';
+import { quotationEscp } from './quotation.escp';
 import { quotationSchema } from './quotation.schema';
 
 /** 報表格式註冊表 — AI 產生的格式都在這裡註冊 */
@@ -33,6 +34,7 @@ register('quotation', {
   name: '估價單',
   description: '估價單（中一刀 241×140mm），含客戶資訊、明細、合計',
   format: quotationFormat,
+  escpFormat: quotationEscp,
   schema: quotationSchema,
 });
 
