@@ -10,6 +10,7 @@ import { getFormat, getEscpFormat, getEscpLines, getSchema, listFormats } from '
 import { renderedLinesToPng } from '../services/bitmap-preview.service';
 import { generateRequestSchema } from '../validators/generate.validator';
 import { config } from '../config';
+import { logger } from '../utils/logger';
 
 /** Schema 檔案目錄 */
 const schemasDir = path.join(config.dataDir, 'schemas');
@@ -168,6 +169,16 @@ router.post('/', async (req: Request, res: Response) => {
       const escpBuffer = escpFn(parsed.data);
       const printerName = parsed.printer || 'EPSON LQ-690CIIN ESC/P2';
 
+      // Log buffer details for debugging
+      const firstBytes = escpBuffer.slice(0, 20).toString('hex');
+      logger.info({
+        reportType: parsed.reportType,
+        printer: printerName,
+        bufferBytes: escpBuffer.length,
+        firstBytes,
+        dataKeys: Object.keys(parsed.data),
+      }, 'ESC/P buffer generated');
+
       const job = createJob({
         printer: printerName,
         mode: 'escp',
@@ -195,7 +206,8 @@ router.post('/', async (req: Request, res: Response) => {
         mode: 'escp',
         jobId: job.id,
         printer: printerName,
-        bytes: escpBuffer.length,
+        bufferBytes: escpBuffer.length,
+        firstBytes,
       });
     }
 

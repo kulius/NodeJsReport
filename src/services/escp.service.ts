@@ -393,7 +393,7 @@ export function cmdGraphics24(columnData: Buffer): Buffer {
   }
   const nL = numColumns & 0xff;
   const nH = (numColumns >> 8) & 0xff;
-  const header = Buffer.from([ESC, 0x2a, 39, nL, nH]); // ESC * 39 nL nH (180 DPI)
+  const header = Buffer.from([ESC, 0x2a, 33, nL, nH]); // ESC * 33 nL nH — 24-pin 180×180 DPI
   return Buffer.concat([header, columnData]);
 }
 
@@ -602,10 +602,15 @@ public struct DOCINFOA {
 Add-Type -MemberDefinition $signature -Name RawPrinter -Namespace Win32 -PassThru | Out-Null
 
 function Send-RawData($printerName, $filePath) {
+    $bytes = [System.IO.File]::ReadAllBytes($filePath)
+    Write-Output "FILE_BYTES=$($bytes.Length)"
+
     $hPrinter = [IntPtr]::Zero
     if (-not [Win32.RawPrinter]::OpenPrinter($printerName, [ref]$hPrinter, [IntPtr]::Zero)) {
-        throw "Cannot open printer: $printerName"
+        $err = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error()
+        throw "Cannot open printer '$printerName' (Win32 error $err)"
     }
+    Write-Output "PRINTER_OPENED=true"
     try {
         $di = New-Object Win32.RawPrinter+DOCINFOA
         $di.pDocName = "ESC/P Raw Print"
@@ -613,21 +618,25 @@ function Send-RawData($printerName, $filePath) {
         $di.pDataType = "RAW"
 
         if (-not [Win32.RawPrinter]::StartDocPrinter($hPrinter, 1, [ref]$di)) {
-            throw "StartDocPrinter failed"
+            $err = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error()
+            throw "StartDocPrinter failed (Win32 error $err)"
         }
+        Write-Output "DOC_STARTED=true"
         try {
             if (-not [Win32.RawPrinter]::StartPagePrinter($hPrinter)) {
-                throw "StartPagePrinter failed"
+                $err = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error()
+                throw "StartPagePrinter failed (Win32 error $err)"
             }
             try {
-                $bytes = [System.IO.File]::ReadAllBytes($filePath)
                 $ptr = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($bytes.Length)
                 try {
                     [System.Runtime.InteropServices.Marshal]::Copy($bytes, 0, $ptr, $bytes.Length)
                     $written = 0
                     if (-not [Win32.RawPrinter]::WritePrinter($hPrinter, $ptr, $bytes.Length, [ref]$written)) {
-                        throw "WritePrinter failed"
+                        $err = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error()
+                        throw "WritePrinter failed (Win32 error $err)"
                     }
+                    Write-Output "WRITTEN_BYTES=$written"
                 } finally {
                     [System.Runtime.InteropServices.Marshal]::FreeHGlobal($ptr)
                 }
@@ -653,15 +662,28 @@ Send-RawData $env:ESCP_PRINTER $env:ESCP_FILE
         timeout: 30_000,
         env: { ...process.env, ESCP_PRINTER: printerName, ESCP_FILE: tmpFile },
       },
-      (error, _stdout, stderr) => {
-        // Clean up temp file
-        try { fs.unlinkSync(tmpFile); } catch { /* ignore */ }
+      (error, stdout, stderr) => {
+        // Parse PowerShell diagnostic output
+        const diag: Record<string, string> = {};
+        for (const line of (stdout || '').split('\n')) {
+          const m = line.match(/^(\w+)=(.+)$/);
+          if (m) diag[m[1]] = m[2].trim();
+        }
 
         if (error) {
-          logger.error({ error, stderr, printerName }, 'Failed to send ESC/P via RawPrinterHelper');
+          logger.error({ error, stderr, stdout, printerName, tmpFile, diag }, 'Failed to send ESC/P via RawPrinterHelper');
+          // Keep .prn file for debugging on failure
           reject(new Error(`ESC/P raw print failed: ${stderr || error.message}`));
         } else {
-          logger.info({ printerName, bytes: buffer.length }, 'ESC/P data sent via RawPrinterHelper');
+          logger.info({
+            printerName,
+            bufferBytes: buffer.length,
+            fileBytes: diag.FILE_BYTES,
+            writtenBytes: diag.WRITTEN_BYTES,
+            tmpFile,
+          }, 'ESC/P data sent via RawPrinterHelper');
+          // Clean up temp file only on success
+          try { fs.unlinkSync(tmpFile); } catch { /* ignore */ }
           resolve();
         }
       }
