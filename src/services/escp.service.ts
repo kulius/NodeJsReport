@@ -393,7 +393,7 @@ export function cmdGraphics24(columnData: Buffer): Buffer {
   }
   const nL = numColumns & 0xff;
   const nH = (numColumns >> 8) & 0xff;
-  const header = Buffer.from([ESC, 0x2a, 33, nL, nH]); // ESC * 33 nL nH — 24-pin 180×180 DPI
+  const header = Buffer.from([ESC, 0x2a, 39, nL, nH]); // ESC * 39 nL nH — 24-pin 360×180 DPI (bitmap designed for 360 DPI horizontal)
   return Buffer.concat([header, columnData]);
 }
 
