@@ -563,6 +563,7 @@ export async function sendEscpToLocalPrinter(
 ): Promise<void> {
   validatePrinterName(printerName);
 
+  fs.mkdirSync(config.outputDir, { recursive: true });
   const tmpFile = path.join(config.outputDir, `escp-${randomUUID()}.prn`);
   fs.writeFileSync(tmpFile, buffer);
 
@@ -678,6 +679,7 @@ export async function sendEscpToWindowsPrinter(
     throw new Error('Invalid printer share path format. Expected \\\\server\\printer');
   }
 
+  fs.mkdirSync(config.outputDir, { recursive: true });
   const tmpFile = path.join(config.outputDir, `escp-${randomUUID()}.prn`);
   fs.writeFileSync(tmpFile, buffer);
 
