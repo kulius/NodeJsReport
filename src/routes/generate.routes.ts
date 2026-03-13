@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { generateReport } from '../services/report.service';
 import { printPdfBuffer } from '../services/printer.service';
-import { sendEscpToLocalPrinter, buildRenderedLines } from '../services/escp.service';
+import { sendEscpToLocalPrinter, buildRenderedLines, detectEscpPrinter } from '../services/escp.service';
 import { createJob, updateJobStatus } from '../services/job-queue.service';
 import { getFormat, getEscpFormat, getEscpLines, getSchema, listFormats } from '../services/report-formats';
 import { renderedLinesToPng } from '../services/bitmap-preview.service';
@@ -167,7 +167,15 @@ router.post('/', async (req: Request, res: Response) => {
       }
 
       const escpBuffer = escpFn(parsed.data);
-      const printerName = parsed.printer || 'EPSON LQ-690CIIN ESC/P2';
+      const detected = await detectEscpPrinter();
+      const printerName = parsed.printer || detected;
+
+      if (!printerName) {
+        return res.status(400).json({
+          success: false,
+          error: 'No ESC/P printer found. Please specify printer name or install an EPSON LQ series printer.',
+        });
+      }
 
       // Log buffer details for debugging
       const firstBytes = escpBuffer.slice(0, 20).toString('hex');

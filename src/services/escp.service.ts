@@ -4,9 +4,48 @@ import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import iconv from 'iconv-lite';
+import { getPrinters } from 'pdf-to-printer';
 import { logger } from '../utils/logger';
 import { config } from '../config';
 import { renderLine, type FontSize, type RenderedLine, FONT_NORMAL } from './bitmap-font.service';
+
+/**
+ * Auto-detect ESC/P dot-matrix printer by searching for known patterns.
+ * Returns the first matching printer name, or undefined if none found.
+ */
+const ESCP_PRINTER_PATTERNS = ['LQ-690', 'LQ-310', 'LQ-680', 'LQ-2190', 'LQ-590'];
+
+let cachedEscpPrinter: string | undefined;
+let cacheTimestamp = 0;
+const CACHE_TTL_MS = 30_000; // 30 seconds
+
+export async function detectEscpPrinter(): Promise<string | undefined> {
+  const now = Date.now();
+  if (cachedEscpPrinter && now - cacheTimestamp < CACHE_TTL_MS) {
+    return cachedEscpPrinter;
+  }
+
+  try {
+    const printers = await getPrinters();
+    const names = printers.map((p) => p.name);
+
+    for (const pattern of ESCP_PRINTER_PATTERNS) {
+      const match = names.find((n) => n.toUpperCase().includes(pattern));
+      if (match) {
+        cachedEscpPrinter = match;
+        cacheTimestamp = now;
+        logger.info({ detected: match, pattern }, 'ESC/P printer auto-detected');
+        return match;
+      }
+    }
+
+    logger.warn({ available: names }, 'No ESC/P printer detected among installed printers');
+    return undefined;
+  } catch (error) {
+    logger.error({ error }, 'Failed to detect ESC/P printer');
+    return undefined;
+  }
+}
 
 /**
  * ESC/P Command Builder for dot-matrix printers (e.g., EPSON LQ series).

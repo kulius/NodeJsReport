@@ -421,7 +421,7 @@ async function testFormat(formatId, action, mode) {
     if (action === 'preview') {
       window.open(`/preview.html?id=${result.previewId}`, '_blank');
     } else {
-      const extra = result.mode === 'escp' ? ` [ESC/P ${result.bytes}bytes]` : '';
+      const extra = result.mode === 'escp' ? ` [ESC/P ${result.bufferBytes}bytes]` : '';
       showToast(`列印成功 (${result.printer})${extra}`, 'success');
       loadJobs();
     }
