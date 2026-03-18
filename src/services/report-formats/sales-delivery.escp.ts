@@ -81,8 +81,8 @@ interface SalesDeliveryData {
 /** 總行寬 118 半形字元 → 118 × 12px = 1416 dots = 7.87"（241mm 紙張 8" 可列印區內） */
 const LINE_WIDTH = 118;
 
-/** 頁長：44 行 at 1/8" 行距 = 5.5" = 140mm */
-const PAGE_LINES = 44;
+/** 頁長：41 行 at 24/180" 行距 = 5.47" ≈ 139mm（中一刀 140mm） */
+const PAGE_LINES = 41;
 
 /** 9 欄欄寬（半形字元數）— v0.3.9 調整有效日期欄寬 */
 const COL = {
