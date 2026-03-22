@@ -7,7 +7,7 @@ import {
   textWidth,
   type LineEntry,
 } from '../escp.service';
-import { FONT_LARGE, FONT_SMALL } from '../bitmap-font.service';
+import { FONT_SMALL } from '../bitmap-font.service';
 
 /**
  * 銷貨單 ESC/P 版面 — 中一刀 241mm × 140mm（對齊 Photo 2）
@@ -81,8 +81,31 @@ interface SalesDeliveryData {
 /** 總行寬 118 半形字元 → 118 × 12px = 1416 dots = 7.87"（241mm 紙張 8" 可列印區內） */
 const LINE_WIDTH = 118;
 
-/** 頁長：41 行 at 24/180" 行距 = 5.47" ≈ 139mm（中一刀 140mm） */
-const PAGE_LINES = 41;
+/** 頁長：38 行 at 24/180" 行距 = 5.07" ≈ 130mm（中一刀） */
+const PAGE_LINES = 38;
+
+/**
+ * 每頁固定行數（printer lines）：
+ *   標題行（銷貨單）  = 1（一般字型，置中）
+ *   company name line = 1
+ *   address line      = 1
+ *   telFax line       = 1（始終輸出，確保行數固定）
+ *   drawSeparator     = 1
+ *   客戶資訊 5 行      = 5
+ *   表頭分隔+欄名+分隔 = 3
+ *   Header 合計       = 13
+ *
+ *   表格底部分隔線    = 1
+ *   合計行            = 1
+ *   底部分隔線        = 1
+ *   簽名行            = 1
+ *   Footer 合計       = 4
+ *
+ *   可用明細行 = PAGE_LINES(38) - HEADER_LINES(13) - FOOTER_LINES(4) = 21
+ */
+const HEADER_LINES = 13;
+const FOOTER_LINES = 4;
+const MAX_DETAIL_LINES = PAGE_LINES - HEADER_LINES - FOOTER_LINES; // 21
 
 /** 9 欄欄寬（半形字元數）— v0.3.9 調整有效日期欄寬 */
 const COL = {
@@ -147,8 +170,18 @@ function tableRow(cells: ReadonlyArray<{ readonly text: string; readonly width: 
   return SEP_V + formatted.join(SEP_V) + SEP_V;
 }
 
+/** 空白明細行（用於填充頁面） */
+const EMPTY_ROW_TEXT = tableRow(
+  Object.values(COL).map(w => ({ text: '', width: w }))
+);
+
 /**
  * Build LineEntry[] for sales delivery (shared by print + preview)
+ *
+ * 分頁邏輯：每頁固定 PAGE_LINES(38) 行：
+ *   HEADER_LINES(13) + MAX_DETAIL_LINES(24) + FOOTER_LINES(4) = 41
+ * 超過 MAX_DETAIL_LINES 的 items 自動分到下一頁。
+ * 合計資訊只在最後一頁顯示，其他頁 footer 以空白行維持固定高度。
  */
 export function salesDeliveryEscpLines(rawData: Record<string, unknown>): LineEntry[] {
   const data = rawData as unknown as SalesDeliveryData;
@@ -157,91 +190,7 @@ export function salesDeliveryEscpLines(rawData: Record<string, unknown>): LineEn
   const docInfo = data.docInfo ?? {};
   const items = data.items ?? [];
   const totals = data.totals ?? {};
-  const pageNum = data.pageNumber ?? 1;
-  const totalPages = data.totalPages ?? 1;
 
-  const lines: LineEntry[] = [];
-
-  // ── 標題「銷貨單」— 大字型（2 行高） ──
-  const companyName = company.name ?? '';
-  const title = '銷貨單';
-  // 大字型標題：公司名稱在左 + 銷貨單在右，使用 FONT_LARGE
-  const titleWidth = textWidth(title);
-  lines.push({
-    text: buildLine([
-      { text: companyName, width: LINE_WIDTH - titleWidth, align: 'left' },
-      { text: title, width: titleWidth, align: 'right' },
-    ]),
-    fontSize: FONT_LARGE,
-  });
-
-  // ── 表頭 Line 2: 地址（左）+ 公司編碼 + 頁碼（右） ──
-  const addressText = company.address ?? '';
-  const companyCode = company.code ?? customer.companyCode ?? '';
-  const pageInfo = `${pageNum}/${totalPages}`;
-  const rightPart = [
-    companyCode ? `公司編碼:${companyCode}` : '',
-    pageInfo,
-  ].filter(Boolean).join('    ');
-  const rightPartW = textWidth(rightPart);
-  lines.push(buildLine([
-    { text: addressText, width: LINE_WIDTH - rightPartW, align: 'left' },
-    { text: rightPart, width: rightPartW, align: 'right' },
-  ]));
-
-  // ── 表頭 Line 3: TEL + FAX ──
-  const telFax = [
-    company.tel ? `TEL:${company.tel}` : '',
-    company.fax ? `FAX:${company.fax}` : '',
-  ].filter(Boolean).join('  ');
-  if (telFax) {
-    lines.push(telFax);
-  }
-
-  // ── 分隔線 ──
-  lines.push(drawSeparator(LINE_WIDTH, SEP_H));
-
-  // ── 客戶資訊區（5 行，2 欄配置，對齊 Photo 2） ──
-  const lbl = 10;  // 中文標籤寬度（含冒號）
-  const halfW = Math.floor(LINE_WIDTH / 2);
-  const v1 = halfW - lbl;    // 第一欄值寬度
-  const v2 = LINE_WIDTH - halfW - lbl;  // 第二欄值寬度
-
-  lines.push(buildLine([
-    { text: '統一編號:', width: lbl },
-    { text: customer.taxId ?? '', width: v1 },
-    { text: '電話號碼:', width: lbl },
-    { text: customer.phone ?? '', width: v2 },
-  ]));
-
-  lines.push(buildLine([
-    { text: '公司名稱:', width: lbl },
-    { text: customer.companyName ?? '', width: v1 },
-    { text: '收款方式:', width: lbl },
-    { text: customer.paymentMethod ?? '', width: v2 },
-  ]));
-
-  lines.push(buildLine([
-    { text: '裝貨地址:', width: lbl },
-    { text: customer.invoiceAddress ?? '', width: v1 },
-    { text: '單據日期:', width: lbl },
-    { text: docInfo.date ?? '', width: v2 },
-  ]));
-
-  lines.push(buildLine([
-    { text: '送貨地址:', width: lbl },
-    { text: customer.shippingAddress ?? '', width: v1 },
-    { text: '單據號碼:', width: lbl },
-    { text: docInfo.docNumber ?? '', width: v2 },
-  ]));
-
-  lines.push(buildLine([
-    { text: '', width: halfW },
-    { text: '發票號碼:', width: lbl },
-    { text: docInfo.invoiceNumber ?? '', width: v2 },
-  ]));
-
-  // ── 明細表格（9 欄）— 使用 FONT_SMALL 渲染 ──
   const small = (text: string): LineEntry => ({ text, fontSize: FONT_SMALL });
 
   const colDefs = [
@@ -256,20 +205,18 @@ export function salesDeliveryEscpLines(rawData: Record<string, unknown>): LineEn
     { text: '有效日期', width: COL.expiryDate, align: 'center' as const },
   ];
 
-  lines.push(small(tableSeparator()));
-  lines.push(small(tableRow(colDefs)));
-  lines.push(small(tableSeparator()));
-
-  // 明細行 — 支援 multi-line（英文品名/貨品名稱自動換行）
-  let dataRowCount = 0;
-  for (const item of items) {
+  // ── Step 1: 預計算每個 item 的明細行 ──
+  interface ItemRows {
+    readonly rows: LineEntry[];
+  }
+  const allItemRows: ItemRows[] = items.map(item => {
     const engLines = wrapText(item.englishName ?? '', COL.englishName);
     const nameLines = wrapText(item.productName ?? '', COL.productName);
     const rowHeight = Math.max(engLines.length, nameLines.length);
-
+    const rows: LineEntry[] = [];
     for (let r = 0; r < rowHeight; r++) {
       const isFirstLine = r === 0;
-      lines.push(small(tableRow([
+      rows.push(small(tableRow([
         { text: engLines[r] ?? '', width: COL.englishName },
         { text: nameLines[r] ?? '', width: COL.productName },
         { text: isFirstLine ? fmt(item.qty) : '', width: COL.qty, align: 'right' },
@@ -280,22 +227,51 @@ export function salesDeliveryEscpLines(rawData: Record<string, unknown>): LineEn
         { text: isFirstLine ? (item.lotNumber ?? '') : '', width: COL.lotNumber, align: 'center' },
         { text: isFirstLine ? (item.expiryDate ?? '') : '', width: COL.expiryDate, align: 'center' },
       ])));
-      dataRowCount++;
     }
+    return { rows };
+  });
+
+  // ── Step 2: 分頁 ──
+  interface PageData {
+    readonly itemRows: ItemRows[];
+    readonly isLastPage: boolean;
   }
+  const pages: PageData[] = [];
+  let currentPageItems: ItemRows[] = [];
+  let currentLineCount = 0;
 
-  // 填充空行到最少 8 行
-  const minRows = 8;
-  const emptyRow = tableRow(
-    Object.values(COL).map(w => ({ text: '', width: w }))
-  );
-  for (let i = dataRowCount; i < minRows; i++) {
-    lines.push(small(emptyRow));
+  for (const itemRow of allItemRows) {
+    const rowLen = itemRow.rows.length;
+    if (currentLineCount + rowLen > MAX_DETAIL_LINES && currentPageItems.length > 0) {
+      pages.push({ itemRows: [...currentPageItems], isLastPage: false });
+      currentPageItems = [];
+      currentLineCount = 0;
+    }
+    currentPageItems.push(itemRow);
+    currentLineCount += rowLen;
   }
+  // 最後一頁（含空單）
+  pages.push({ itemRows: currentPageItems, isLastPage: true });
 
-  lines.push(small(tableSeparator()));
+  const totalPages = pages.length;
 
-  // ── 合計區（對齊 Photo 2：總計 / 折讓 / 收） ──
+  // ── Step 3: 組合每頁輸出 ──
+  const allLines: LineEntry[] = [];
+
+  // 版面常數
+  const lbl = 10;
+  const halfW = Math.floor(LINE_WIDTH / 2);
+  const v1 = halfW - lbl;
+  const v2 = LINE_WIDTH - halfW - lbl;
+
+  const companyName = company.name ?? '';
+  const addressText = company.address ?? '';
+  const companyCode = company.code ?? customer.companyCode ?? '';
+  const telFax = [
+    company.tel ? `TEL:${company.tel}` : '',
+    company.fax ? `FAX:${company.fax}` : '',
+  ].filter(Boolean).join('  ');
+
   const totalLine = buildLine([
     { text: '總  計', width: 8, align: 'right' },
     { text: fmt(totals.subtotal), width: 16, align: 'right' },
@@ -306,11 +282,7 @@ export function salesDeliveryEscpLines(rawData: Record<string, unknown>): LineEn
     { text: '收', width: 4, align: 'right' },
     { text: fmt(totals.totalDue), width: LINE_WIDTH - 8 - 16 - 20 - 6 - 16 - 14 - 4, align: 'right' },
   ]);
-  lines.push(totalLine);
 
-  lines.push(drawSeparator(LINE_WIDTH, SEP_H));
-
-  // ── 附註 + 簽名欄 ──
   const notesText = data.notes ?? '';
   const sigBlock = '製表    覆核    客戶簽收';
   const sigW = textWidth(sigBlock);
@@ -318,9 +290,124 @@ export function salesDeliveryEscpLines(rawData: Record<string, unknown>): LineEn
     { text: notesText ? `備註:${notesText}` : '', width: LINE_WIDTH - sigW },
     { text: sigBlock, width: sigW, align: 'right' },
   ]);
-  lines.push(sigLine);
 
-  return lines;
+  for (let pageIdx = 0; pageIdx < pages.length; pageIdx++) {
+    const page = pages[pageIdx];
+    const pageNum = pageIdx + 1;
+    const pageInfo = `${pageNum}/${totalPages}`;
+
+    // ── Header (13 printer lines) ──
+
+    // Line 1: 銷貨單 置中 + 頁碼右側（一般字型）
+    const title = '銷貨單';
+    const titleW = textWidth(title);
+    const titleLeftPad = Math.floor((LINE_WIDTH - titleW) / 2);
+    allLines.push(buildLine([
+      { text: '', width: titleLeftPad, align: 'left' },
+      { text: title, width: titleW, align: 'left' },
+      { text: pageInfo, width: LINE_WIDTH - titleLeftPad - titleW, align: 'right' },
+    ]));
+
+    // Line 2: 公司名稱
+    allLines.push(companyName || '');
+
+    // Line 3: 地址 + 公司編碼
+    const rightPart = companyCode ? `公司編碼:${companyCode}` : '';
+    const rightPartW = textWidth(rightPart);
+    allLines.push(buildLine([
+      { text: addressText, width: LINE_WIDTH - rightPartW, align: 'left' },
+      { text: rightPart, width: rightPartW, align: 'right' },
+    ]));
+
+    // Line 3: TEL + FAX（固定輸出，確保行數不因 telFax 有無而變動）
+    allLines.push(telFax || '');
+
+    // Line 4: 分隔線
+    allLines.push(drawSeparator(LINE_WIDTH, SEP_H));
+
+    // Lines 5-9: 客戶資訊 5 行
+    allLines.push(buildLine([
+      { text: '統一編號:', width: lbl },
+      { text: customer.taxId ?? '', width: v1 },
+      { text: '電話號碼:', width: lbl },
+      { text: customer.phone ?? '', width: v2 },
+    ]));
+
+    allLines.push(buildLine([
+      { text: '公司名稱:', width: lbl },
+      { text: customer.companyName ?? '', width: v1 },
+      { text: '收款方式:', width: lbl },
+      { text: customer.paymentMethod ?? '', width: v2 },
+    ]));
+
+    allLines.push(buildLine([
+      { text: '裝貨地址:', width: lbl },
+      { text: customer.invoiceAddress ?? '', width: v1 },
+      { text: '單據日期:', width: lbl },
+      { text: docInfo.date ?? '', width: v2 },
+    ]));
+
+    allLines.push(buildLine([
+      { text: '送貨地址:', width: lbl },
+      { text: customer.shippingAddress ?? '', width: v1 },
+      { text: '單據號碼:', width: lbl },
+      { text: docInfo.docNumber ?? '', width: v2 },
+    ]));
+
+    allLines.push(buildLine([
+      { text: '', width: halfW },
+      { text: '發票號碼:', width: lbl },
+      { text: docInfo.invoiceNumber ?? '', width: v2 },
+    ]));
+
+    // Lines 10-12: 表頭
+    allLines.push(small(tableSeparator()));
+    allLines.push(small(tableRow(colDefs)));
+    allLines.push(small(tableSeparator()));
+
+    // ── Detail rows (up to MAX_DETAIL_LINES printer lines) ──
+    let detailLineCount = 0;
+    for (const itemRow of page.itemRows) {
+      for (const row of itemRow.rows) {
+        allLines.push(row);
+        detailLineCount++;
+      }
+    }
+
+    // 填充空行到 MAX_DETAIL_LINES
+    for (let i = detailLineCount; i < MAX_DETAIL_LINES; i++) {
+      allLines.push(small(EMPTY_ROW_TEXT));
+    }
+
+    // ── Footer (4 printer lines) ──
+
+    // Line 1: 表格底部分隔線
+    allLines.push(small(tableSeparator()));
+
+    if (page.isLastPage) {
+      // Line 2: 合計行
+      allLines.push(totalLine);
+      // Line 3: 分隔線
+      allLines.push(drawSeparator(LINE_WIDTH, SEP_H));
+      // Line 4: 簽名行
+      allLines.push(sigLine);
+    } else {
+      // 非最後頁：以空白行維持固定高度，並標示「續下頁」
+      const continueText = '（續下頁）';
+      const continueW = textWidth(continueText);
+      allLines.push(buildLine([
+        { text: '', width: LINE_WIDTH - continueW },
+        { text: continueText, width: continueW, align: 'right' },
+      ]));
+      allLines.push(drawSeparator(LINE_WIDTH, SEP_H));
+      allLines.push(buildLine([
+        { text: '', width: LINE_WIDTH - sigW },
+        { text: sigBlock, width: sigW, align: 'right' },
+      ]));
+    }
+  }
+
+  return allLines;
 }
 
 export const salesDeliveryEscp: EscpFormatFn = (rawData) => {

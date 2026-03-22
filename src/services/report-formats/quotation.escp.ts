@@ -6,7 +6,7 @@ import {
   textWidth,
   type LineEntry,
 } from '../escp.service';
-import { FONT_LARGE, FONT_SMALL } from '../bitmap-font.service';
+import { FONT_SMALL } from '../bitmap-font.service';
 
 /**
  * 估價單 ESC/P 版面 — 中一刀 241mm × 140mm
@@ -65,8 +65,8 @@ interface QuotationData {
 // ── 版面常數 ──
 
 const LINE_WIDTH = 118;
-/** 頁長：41 行 at 24/180" 行距 = 5.47" ≈ 139mm（中一刀 140mm） */
-const PAGE_LINES = 41;
+/** 頁長：38 行 at 24/180" 行距 = 5.07" ≈ 130mm（中一刀） */
+const PAGE_LINES = 38;
 
 /** 明細 9 欄欄寬 */
 const COL = {
@@ -175,22 +175,18 @@ export function quotationEscpLines(rawData: Record<string, unknown>): LineEntry[
 
   const lines: LineEntry[] = [];
 
-  // ── 空行 + 標題「估價單」置中（大字型） ──
+  // ── 空行 + 標題「估價單」置中（一般字型） ──
   lines.push('');
 
   const title = '估  價  單';
   const titleW = textWidth(title);
   const pageInfo = `${pageNum}/${totalPages}`;
-  const pageInfoW = textWidth(pageInfo);
   const leftPad = Math.floor((LINE_WIDTH - titleW) / 2);
-  lines.push({
-    text: buildLine([
-      { text: '', width: leftPad, align: 'left' },
-      { text: title, width: titleW, align: 'left' },
-      { text: pageInfo, width: LINE_WIDTH - leftPad - titleW, align: 'right' },
-    ]),
-    fontSize: FONT_LARGE,
-  });
+  lines.push(buildLine([
+    { text: '', width: leftPad, align: 'left' },
+    { text: title, width: titleW, align: 'left' },
+    { text: pageInfo, width: LINE_WIDTH - leftPad - titleW, align: 'right' },
+  ]));
 
   lines.push('');
 
