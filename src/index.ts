@@ -11,6 +11,7 @@ import { autoStartWatcher, setWatcherEventHandler } from './services/watcher.ser
 import { ensureDesktopShortcut } from './services/shortcut.service';
 import { ensureFonts } from './utils/font-init';
 import { preloadFont } from './services/bitmap-font.service';
+import { checkForUpdate, applyUpdate } from './services/updater.service';
 
 // Routes
 import printerRoutes from './routes/printer.routes';
@@ -115,6 +116,30 @@ server.listen(config.port, config.host, () => {
 
   // Create desktop shortcut on first run (pkg only)
   ensureDesktopShortcut();
+
+  // Auto-check for updates on startup (pkg only)
+  if (config.isPkg) {
+    setTimeout(async () => {
+      try {
+        logger.info('Startup auto-update check...');
+        const result = await checkForUpdate(true);
+        if (result.available && result.downloadUrl) {
+          logger.info(
+            { currentVersion: result.currentVersion, latestVersion: result.latestVersion },
+            'New version available, auto-updating...'
+          );
+          await applyUpdate(result.downloadUrl, result.latestVersion);
+        } else {
+          logger.info(
+            { currentVersion: result.currentVersion, latestVersion: result.latestVersion },
+            'Already up to date'
+          );
+        }
+      } catch (err) {
+        logger.error({ error: String(err) }, 'Startup auto-update check failed');
+      }
+    }, 5000);
+  }
 });
 
 export { app, server, io };
