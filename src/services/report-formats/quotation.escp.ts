@@ -65,8 +65,8 @@ interface QuotationData {
 // ── 版面常數 ──
 
 const LINE_WIDTH = 118;
-/** 頁長：38 行 at 24/180" 行距 = 5.07" ≈ 130mm（中一刀） */
-const PAGE_LINES = 38;
+/** 頁長：35 行 at 24/180" 行距 = 4.67" ≈ 119mm（中一刀） */
+const PAGE_LINES = 35;
 
 /** 明細 9 欄欄寬 */
 const COL = {

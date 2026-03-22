@@ -81,8 +81,8 @@ interface SalesDeliveryData {
 /** 總行寬 118 半形字元 → 118 × 12px = 1416 dots = 7.87"（241mm 紙張 8" 可列印區內） */
 const LINE_WIDTH = 118;
 
-/** 頁長：38 行 at 24/180" 行距 = 5.07" ≈ 130mm（中一刀） */
-const PAGE_LINES = 38;
+/** 頁長：35 行 at 24/180" 行距 = 4.67" ≈ 119mm（中一刀） */
+const PAGE_LINES = 35;
 
 /**
  * 每頁固定行數（printer lines）：
@@ -101,11 +101,11 @@ const PAGE_LINES = 38;
  *   簽名行            = 1
  *   Footer 合計       = 4
  *
- *   可用明細行 = PAGE_LINES(38) - HEADER_LINES(13) - FOOTER_LINES(4) = 21
+ *   可用明細行 = PAGE_LINES(35) - HEADER_LINES(13) - FOOTER_LINES(4) = 18
  */
 const HEADER_LINES = 13;
 const FOOTER_LINES = 4;
-const MAX_DETAIL_LINES = PAGE_LINES - HEADER_LINES - FOOTER_LINES; // 21
+const MAX_DETAIL_LINES = PAGE_LINES - HEADER_LINES - FOOTER_LINES; // 18
 
 /** 9 欄欄寬（半形字元數）— v0.3.9 調整有效日期欄寬 */
 const COL = {
@@ -178,8 +178,8 @@ const EMPTY_ROW_TEXT = tableRow(
 /**
  * Build LineEntry[] for sales delivery (shared by print + preview)
  *
- * 分頁邏輯：每頁固定 PAGE_LINES(38) 行：
- *   HEADER_LINES(13) + MAX_DETAIL_LINES(24) + FOOTER_LINES(4) = 41
+ * 分頁邏輯：每頁固定 PAGE_LINES(35) 行：
+ *   HEADER_LINES(13) + MAX_DETAIL_LINES(18) + FOOTER_LINES(4) = 35
  * 超過 MAX_DETAIL_LINES 的 items 自動分到下一頁。
  * 合計資訊只在最後一頁顯示，其他頁 footer 以空白行維持固定高度。
  */
