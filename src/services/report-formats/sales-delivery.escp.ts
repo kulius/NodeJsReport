@@ -81,8 +81,16 @@ interface SalesDeliveryData {
 /** 總行寬 118 半形字元 → 118 × 12px = 1416 dots = 7.87"（241mm 紙張 8" 可列印區內） */
 const LINE_WIDTH = 118;
 
-/** 頁長：35 行 at 24/180" 行距 = 4.67" ≈ 119mm（中一刀） */
+/** 內容行數：35 行 at 24/180" 行距 = 4.67" = 118.5mm */
 const PAGE_LINES = 35;
+
+/**
+ * 實體中一刀表單長度：140mm = 992 units of 1/180" (140 × 180 / 25.4 = 992.126)
+ * 列印完 35 行內容（840 units）後，再用 ESC J 精確進紙 152 units
+ * 到下一張表單的孔線，不靠 FF（受 printer form-length / tear-off 影響會飄）
+ */
+const FORM_HEIGHT_180 = 992; // 140mm in 1/180" units
+const TRAILING_ADVANCE_180 = FORM_HEIGHT_180 - PAGE_LINES * 24; // 152 (≈21.4mm)
 
 /**
  * 每頁固定行數（printer lines）：
@@ -414,7 +422,7 @@ export const salesDeliveryEscp: EscpFormatFn = (rawData) => {
   const lines = salesDeliveryEscpLines(rawData);
   return buildEscpFromBitmapLines({
     lines,
-    formFeed: true,
-    pageLines: PAGE_LINES,
+    formFeed: false,
+    trailingAdvance: TRAILING_ADVANCE_180,
   });
 };

@@ -65,8 +65,14 @@ interface QuotationData {
 // ── 版面常數 ──
 
 const LINE_WIDTH = 118;
-/** 頁長：35 行 at 24/180" 行距 = 4.67" ≈ 119mm（中一刀） */
-const PAGE_LINES = 35;
+
+/**
+ * 實體中一刀表單：140mm = 992 units of 1/180" (140 × 180 / 25.4 ≈ 992)
+ * Trailing advance 動態計算：FORM_HEIGHT_180 - (實際行數 × 24)，
+ * 讓每張內容+進紙 = 完整 140mm，下一孔線對齊不飄。
+ */
+const FORM_HEIGHT_180 = 992;
+const LINE_UNITS = 24; // 每行 24/180"（line spacing 設定為 24）
 
 /** 明細 9 欄欄寬 */
 const COL = {
@@ -314,9 +320,11 @@ export function quotationEscpLines(rawData: Record<string, unknown>): LineEntry[
 
 export const quotationEscp: EscpFormatFn = (rawData) => {
   const lines = quotationEscpLines(rawData);
+  const contentUnits = lines.length * LINE_UNITS;
+  const trailingAdvance = Math.max(0, FORM_HEIGHT_180 - contentUnits);
   return buildEscpFromBitmapLines({
     lines,
-    formFeed: true,
-    pageLines: PAGE_LINES,
+    formFeed: false,
+    trailingAdvance,
   });
 };

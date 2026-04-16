@@ -456,12 +456,19 @@ export function buildEscpFromBitmapLines(options: {
   readonly formFeed?: boolean;    // default true
   readonly initPrinter?: boolean; // default true
   readonly pageLines?: number;    // page length in lines (ESC C n), 0 = don't set
+  /**
+   * Precise trailing advance in units of 1/180" (ESC J). Overrides formFeed.
+   * Use this for continuous form paper where FF behavior (depends on printer's
+   * form-length / Auto Tear-Off settings) drifts. Advance to exact perforation.
+   */
+  readonly trailingAdvance?: number;
 }): Buffer {
   const {
     lines,
     formFeed = true,
     initPrinter = true,
     pageLines = 0,
+    trailingAdvance = 0,
   } = options;
 
   const parts: Buffer[] = [];
@@ -503,7 +510,10 @@ export function buildEscpFromBitmapLines(options: {
     }
   }
 
-  if (formFeed) {
+  if (trailingAdvance > 0) {
+    // Precise advance (e.g. to next physical perforation). Replaces FF.
+    parts.push(cmdAdvancePaper(trailingAdvance));
+  } else if (formFeed) {
     parts.push(cmdFF());
   }
 

@@ -10,3 +10,4 @@ data/fonts/*.otf
 !data/output/.gitkeep
 !data/fonts/.gitkeep
 *.log
+quotation_preview*.png
