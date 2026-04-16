@@ -146,3 +146,38 @@ D:\NodeJsReport\
 - 資料存 data/ 目錄（JSON 檔），不用資料庫
 - ESC/P 模式只適用點陣印表機（EPSON LQ 系列）
 - 打包用 `@yao-pkg/pkg`（vercel/pkg 社群 fork）
+
+## ESC/P 印表機驅動陷阱 ⚠️（部署必讀）
+
+**Windows 11 內建的「Epson ESC/P V4 Class Driver」不能用 — RAW datatype 會被靜默丟棄。**
+
+### 症狀
+- API 回傳 `success: true`、job 狀態顯示「已完成」
+- 但實體印表機完全沒動，沒任何輸出
+
+### 原因
+V4 Class Driver 是 XPS-based，`WritePrinter(pDataType="RAW")` 會被 spooler 收下回報成功，但 V4 filter pipeline 預期 XPS 格式 → ESC/P bytes 被當成未知資料丟棄。Windows 自己的「列印測試頁」能印是因為走 GDI→XPS render pipeline，不是 RAW 路徑。
+
+### 解法：強制使用 V3 driver
+
+下載 EPSON 官方 V3 driver（INF 內標記 `ARCH: V3x64/V4x64`，安裝後 Windows 優先用 V3）：
+
+| 機型 | 下載 URL | 大小 |
+|------|----------|------|
+| LQ-690CII / LQ-690CIIN | https://support.epson.com.tw/i-tech/LQ-690CII_LQ-690CIIN_WINX64.zip | 14MB |
+
+驅動名稱裝完後會是 `EPSON LQ-690CIIN ESC/P2`（注意有 `ESC/P2` 後綴）。
+
+### 驗證 V3 driver
+```powershell
+Get-PrinterDriver | Where Name -like '*LQ*' | Select Name,MajorVersion
+# MajorVersion 必須是 3，不可以是 4
+```
+
+### 客戶端部署 SOP
+1. 先移除 Windows 自動安裝的 V4 driver 印表機
+2. 安裝 EPSON 官方 V3 driver（`Setup64.exe`）
+3. **確認 USB port 對應正確**：V3 安裝程式可能建立新 port 但綁錯裝置（例如綁到別台 USB 印表機）
+   - 檢查：`Get-PnpDevice | Where InstanceId -like '*USBPRINT*'` 找出真正的 LQ 印表機所在 port
+   - 如果裝完出現「(副本 1)」印表機在正確 port → 刪掉壞的 + 重命名副本
+4. 最後驗證：`PrinterStatus = Normal`、`DriverName = EPSON LQ-XXX ESC/P2`
